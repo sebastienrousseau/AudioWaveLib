@@ -71,7 +71,10 @@ public class AudioWaveLibProvider: NSObject {
             guard let self = self else { return }
             let frameCount = AVAudioFrameCount(audioFile.length)
             guard frameCount > 0 else {
-                self.delegate?.statusUpdated(provider: self, withError: AudioWaveLibProviderError.invalidFrameCountOrFormat)
+                self.delegate?.statusUpdated(
+                    provider: self,
+                    withError: AudioWaveLibProviderError.invalidFrameCountOrFormat
+                    )
                 return
             }
 
@@ -111,7 +114,10 @@ class DemoDelegate: AudioWaveLibProviderDelegate {
             let minValue = sampleData.min() ?? 0
 
             // Generate ASCII art waveform
-            var waveform = [[Character]](repeating: [Character](repeating: " ", count: consoleWidth), count: consoleHeight)
+            var waveform = [[Character]](
+                repeating: [Character](repeating: " ",
+                count: consoleWidth), count: consoleHeight
+            )
             for columnIndex in 0 ..< consoleWidth {
                 let startIndex = columnIndex * sampleData.count / consoleWidth
                 let endIndex = min((columnIndex + 1) * sampleData.count / consoleWidth, sampleData.count)
