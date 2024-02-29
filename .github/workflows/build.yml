@@ -1,29 +1,21 @@
-name: 🧪 Release
+name: 🧪 Build
 
 on: [push, pull_request]
 
+concurrency:
+  group: ${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
-  build_and_test:
+  xcode_15_1:
     runs-on: macos-13
-    strategy:
-      matrix:
-        xcode_version: ["11.7", "12.5", "13.3"]
+    env:
+      DEVELOPER_DIR: /Applications/Xcode_15.1.app/Contents/Developer
     steps:
       - name: Checkout
         uses: actions/checkout@v3
-      - name: Use Xcode ${{ matrix.xcode_version }}
-        uses: actions/setup-swift@v2
-        with:
-          xcode-version: ${{ matrix.xcode_version }}
       - name: Version
         run: swift --version
-      - name: Cache Dependencies
-        uses: actions/cache@v2
-        with:
-          path: ~/.swiftpm
-          key: ${{ runner.os }}-spm-${{ hashFiles('**/Package.resolved') }}
-          restore-keys: |
-            ${{ runner.os }}-spm-
       - name: Build
         run: swift build --build-tests
       - name: Test
