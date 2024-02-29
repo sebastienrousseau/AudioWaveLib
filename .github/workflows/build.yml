@@ -1,17 +1,29 @@
-name: 🧪 Build
+name: 🧪 Release
 
 on: [push, pull_request]
 
 jobs:
-  xcode_15_1:
+  build_and_test:
     runs-on: macos-13
-    env:
-      DEVELOPER_DIR: /Applications/Xcode_15.1.app/Contents/Developer
+    strategy:
+      matrix:
+        xcode_version: ["11.7", "12.5", "13.3"]
     steps:
       - name: Checkout
         uses: actions/checkout@v3
+      - name: Use Xcode ${{ matrix.xcode_version }}
+        uses: actions/setup-swift@v2
+        with:
+          xcode-version: ${{ matrix.xcode_version }}
       - name: Version
         run: swift --version
+      - name: Cache Dependencies
+        uses: actions/cache@v2
+        with:
+          path: ~/.swiftpm
+          key: ${{ runner.os }}-spm-${{ hashFiles('**/Package.resolved') }}
+          restore-keys: |
+            ${{ runner.os }}-spm-
       - name: Build
         run: swift build --build-tests
       - name: Test
@@ -22,4 +34,9 @@ jobs:
         uses: codecov/codecov-action@v3
         with:
           files: ./coverage_report.lcov
-
+      - name: Install SwiftLint
+        run: brew install swiftlint
+      - name: Run SwiftLint
+        run: swiftlint
+      - name: Validate Documentation
+        run: swift build --docs
