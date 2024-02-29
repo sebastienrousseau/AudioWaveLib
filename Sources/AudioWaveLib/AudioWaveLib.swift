@@ -44,12 +44,15 @@ public protocol AudioWaveLibProviderDelegate: AnyObject {
 /// Processes and accesses audio wave data, compatible across iOS, macOS, etc.
 public class AudioWaveLibProvider: NSObject {
     private var audioFile: AVAudioFile?
-    private var sampleData: [Float]?
-    private var processingTask: DispatchWorkItem?
+    public var sampleData: [Float]?
+    var processingTask: DispatchWorkItem?
     public weak var delegate: AudioWaveLibProviderDelegate?
 
     public init(url: URL) throws {
         super.init()
+        guard url.isFileURL else {
+            throw AudioWaveLibProviderError.invalidURL
+        }
         do {
             audioFile = try AVAudioFile(forReading: url)
         } catch {
@@ -66,15 +69,17 @@ public class AudioWaveLibProvider: NSObject {
         processingTask?.cancel()
         let task = DispatchWorkItem { [weak self] in
             guard let self = self else { return }
-            let frameCount = UInt32(audioFile.length)
-            guard frameCount > 0, let buffer = AVAudioPCMBuffer(pcmFormat: audioFile.processingFormat, frameCapacity: frameCount) else {
+            let frameCount = AVAudioFrameCount(audioFile.length)
+            guard frameCount > 0 else {
                 self.delegate?.statusUpdated(provider: self, withError: AudioWaveLibProviderError.invalidFrameCountOrFormat)
                 return
             }
+
             do {
-                try audioFile.read(into: buffer)
-                if let channelData = buffer.floatChannelData?.pointee {
-                    let data = Array(UnsafeBufferPointer(start: channelData, count: Int(buffer.frameLength)))
+                let buffer = AVAudioPCMBuffer(pcmFormat: audioFile.processingFormat, frameCapacity: frameCount)
+                try audioFile.read(into: buffer!)
+                if let channelData = buffer?.floatChannelData?.pointee {
+                    let data = Array(UnsafeBufferPointer(start: channelData, count: Int(buffer!.frameLength)))
                     self.sampleData = data
                     DispatchQueue.main.async {
                         self.delegate?.sampleProcessed(provider: self)

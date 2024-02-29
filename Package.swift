@@ -28,6 +28,10 @@ let package = Package(
             path: "Examples/AudioWaveLibSample",
             exclude: ["../../file.mp3"],
             sources: ["main.swift"]
+        ),
+        .testTarget(
+            name: "AudioWaveLibTests",
+            dependencies: ["AudioWaveLib"]
         )
     ]
 )
