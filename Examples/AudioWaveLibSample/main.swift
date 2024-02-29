@@ -5,6 +5,8 @@ import Foundation
 
 // A class that acts as a delegate for the AudioWaveLibProviderDelegate protocol.
 class DemoDelegate: NSObject, AudioWaveLibProviderDelegate {
+    // Only compile this section of code for macOS.
+    #if os(macOS)
     // A window to display the waveform image.
     var window: NSWindow?
     // The color to fill the waveform.
@@ -42,6 +44,8 @@ class DemoDelegate: NSObject, AudioWaveLibProviderDelegate {
     func statusUpdated(provider _: AudioWaveLibProvider, withError error: Error) {
         print("An error occurred: \(error.localizedDescription)")
     }
+
+    #endif
 
     // Generates a waveform image from the given sample data and size.
     private func generateWaveformImage(sampleData: [Float], imageSize: CGSize) -> NSImage? {
