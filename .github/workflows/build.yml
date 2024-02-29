@@ -30,5 +30,7 @@ jobs:
         run: brew install swiftlint
       - name: Run SwiftLint
         run: swiftlint
-      - name: Validate Documentation
-        run: swift build --docs
+      - name: Install SwiftFormat
+        run: brew install swiftformat
+      - name: Run SwiftFormat
+        run: swiftformat .

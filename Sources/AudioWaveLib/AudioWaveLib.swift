@@ -15,13 +15,13 @@ extension AudioWaveLibProviderError: LocalizedError {
     var errorDescription: String? {
         switch self {
         case .invalidURL:
-            return "The URL provided is invalid."
+            "The URL provided is invalid."
         case let .fileInitializationFailed(message):
-            return "Failed to initialize audio file: \(message)"
+            "Failed to initialize audio file: \(message)"
         case .invalidFrameCountOrFormat:
-            return "Invalid frame count or audio format."
+            "Invalid frame count or audio format."
         case let .audioProcessingFailed(message):
-            return "Audio processing failed: \(message)"
+            "Audio processing failed: \(message)"
         }
     }
 }
@@ -61,20 +61,20 @@ public class AudioWaveLibProvider: NSObject {
     }
 
     public func createSampleData() {
-        guard let audioFile = audioFile else {
+        guard let audioFile else {
             delegate?.statusUpdated(provider: self, withError: AudioWaveLibProviderError.invalidFrameCountOrFormat)
             return
         }
 
         processingTask?.cancel()
         let task = DispatchWorkItem { [weak self] in
-            guard let self = self else { return }
+            guard let self else { return }
             let frameCount = AVAudioFrameCount(audioFile.length)
             guard frameCount > 0 else {
-                self.delegate?.statusUpdated(
+                delegate?.statusUpdated(
                     provider: self,
                     withError: AudioWaveLibProviderError.invalidFrameCountOrFormat
-                    )
+                )
                 return
             }
 
@@ -83,7 +83,7 @@ public class AudioWaveLibProvider: NSObject {
                 try audioFile.read(into: buffer!)
                 if let channelData = buffer?.floatChannelData?.pointee {
                     let data = Array(UnsafeBufferPointer(start: channelData, count: Int(buffer!.frameLength)))
-                    self.sampleData = data
+                    sampleData = data
                     DispatchQueue.main.async {
                         self.delegate?.sampleProcessed(provider: self)
                     }
@@ -100,7 +100,7 @@ public class AudioWaveLibProvider: NSObject {
     }
 
     public func getSampleData() -> [Float]? {
-        return sampleData
+        sampleData
     }
 }
 
@@ -116,7 +116,7 @@ class DemoDelegate: AudioWaveLibProviderDelegate {
             // Generate ASCII art waveform
             var waveform = [[Character]](
                 repeating: [Character](repeating: " ",
-                count: consoleWidth), count: consoleHeight
+                                       count: consoleWidth), count: consoleHeight
             )
             for columnIndex in 0 ..< consoleWidth {
                 let startIndex = columnIndex * sampleData.count / consoleWidth
