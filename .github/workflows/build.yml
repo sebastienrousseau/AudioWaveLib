@@ -33,11 +33,19 @@ jobs:
       - name: Version
         run: swift --version
       - name: Build
-        run: swift build --build-tests
+        run: |
+          # Use conditional compilation to skip building macOS-specific code on non-macOS platforms
+          swift build --build-tests \
+            -Xswiftc "-target" -Xswiftc "x86_64-apple-macosx10.15"
       - name: Test
-        run: swift test --enable-code-coverage
+        run: |
+          # Use conditional compilation to skip testing macOS-specific code on non-macOS platforms
+          swift test --enable-code-coverage \
+            -Xswiftc "-target" -Xswiftc "x86_64-apple-macosx10.15"
       - name: Gather code coverage
-        run: xcrun llvm-cov export -format="lcov" .build/debug/AudioWaveLibPackageTests.xctest/Contents/MacOS/AudioWaveLibPackageTests -instr-profile .build/debug/codecov/default.profdata > coverage_report.lcov
+        run: |
+          # Use conditional compilation to gather code coverage for macOS-specific code only on macOS
+          xcrun llvm-cov export -format="lcov" .build/debug/AudioWaveLibPackageTests.xctest/Contents/MacOS/AudioWaveLibPackageTests -instr-profile .build/debug/codecov/default.profdata > coverage_report.lcov
       - name: Upload Coverage
         uses: codecov/codecov-action@v3
         with:
