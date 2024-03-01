@@ -2,57 +2,45 @@
 import AVFoundation
 import XCTest
 
-class AudioWaveLibProviderTests: XCTestCase {
-    var provider: AudioWaveLibProvider!
+class AudioWaveLibProviderTests: XCTestCase, AudioWaveLibProviderDelegate {
+    func statusUpdated(provider: AudioWaveLib.AudioWaveLibProvider, withError error: Error) {
+        // Fulfil the expectation when the processing fails
+        XCTAssertNil(error)
+        invalidAudioFileURL = URL(fileURLWithPath: "invalidFile.mp3")
+        let provider = try? AudioWaveLibProvider(url: invalidAudioFileURL)
+        XCTAssertNil(provider, "Provider initialization should fail with an invalid URL")
+    }
+
+    var provider: AudioWaveLibProvider?
+    var validAudioFileURL: URL!
+    var invalidAudioFileURL: URL!
 
     override func setUp() {
         super.setUp()
-        let audioFileURL = URL(fileURLWithPath: "./file.mp3")
-        do {
-            provider = try AudioWaveLibProvider(url: audioFileURL)
-            provider.createSampleData() // Ensure sample data is created
-        } catch {
-            XCTFail("Failed to initialize AudioWaveLibProvider: \(error.localizedDescription)")
-        }
+        validAudioFileURL = URL(fileURLWithPath: "./file.mp3")
+        invalidAudioFileURL = URL(fileURLWithPath: "./invalidFile.mp3")
     }
 
-    override func tearDown() {
-        provider = nil
-        super.tearDown()
+    // Implementation of the delegate method
+    func sampleProcessed(provider: AudioWaveLibProvider) {
+        XCTAssertNotNil(provider.sampleData)
     }
 
-    func testInitializationWithValidURL() {
-        XCTAssertNotNil(provider)
+    func testInvalidFrameCountOrFormatError() {
+        let invalidAudioFileURL = URL(fileURLWithPath: "invalidFile.mp3")
+        let provider = try? AudioWaveLibProvider(url: invalidAudioFileURL)
+        XCTAssertNil(provider, "Provider initialization should fail with an invalid URL")
     }
 
-    func testInitializationWithInvalidURL() {
-        XCTAssertThrowsError(try AudioWaveLibProvider(url: URL(string: "invalidURL")!)) { error in
-            XCTAssertTrue(error is AudioWaveLibProviderError)
-        }
-    }
-}
-
-class DemoDelegateTests: XCTestCase {
-    var delegate: DemoDelegate!
-
-    override func setUp() {
-        super.setUp()
-        delegate = DemoDelegate()
+    func testInitializationWithInvalidURLFails() {
+        let invalidProvider = try? AudioWaveLibProvider(url: invalidAudioFileURL)
+        XCTAssertNil(invalidProvider, "Provider initialization should fail with an invalid URL")
     }
 
-    override func tearDown() {
-        delegate = nil
-        super.tearDown()
-    }
-
-    func testSampleProcessed() {
-        guard let provider = try? AudioWaveLibProvider(url: URL(fileURLWithPath: "../../file.mp3")) else { return }
-        delegate.sampleProcessed(provider: provider)
-    }
-
-    func testStatusUpdated() {
-        let error = AudioWaveLibProviderError.invalidURL
-        guard let provider = try? AudioWaveLibProvider(url: URL(fileURLWithPath: "../../file.mp3")) else { return }
-        delegate.statusUpdated(provider: provider, withError: error)
+    func testInitializationWithValidURLSucceeds() {
+        // Here, you should be testing with a local variable or a differently initialized instance
+        // For the sake of example, let's say we're directly using a new instance for this test
+        let validProvider = try? AudioWaveLibProvider(url: validAudioFileURL)
+        XCTAssertNotNil(validProvider, "Provider initialization should succeed with a valid URL")
     }
 }

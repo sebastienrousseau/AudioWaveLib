@@ -2,12 +2,13 @@ import AVFoundation
 import Foundation
 
 /// An enumeration representing the possible errors that can occur in the AudioWaveLibProvider.
-enum AudioWaveLibProviderError: Error {
+enum AudioWaveLibProviderError: Error, Equatable {
     case invalidURL
     case fileInitializationFailed(String)
     case invalidFrameCountOrFormat
     case audioProcessingFailed(String)
 }
+
 
 /// Extension of `AudioWaveLibProviderError` conforming to `LocalizedError` protocol.
 extension AudioWaveLibProviderError: LocalizedError {
