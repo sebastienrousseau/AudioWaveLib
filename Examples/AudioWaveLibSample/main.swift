@@ -54,9 +54,7 @@ class WaveformRenderer: NSObject, AudioWaveLibProviderDelegate, @unchecked Senda
         let imageSize = CGSize(width: 300, height: 100)
         if let image = generateWaveformImage(sampleData: sampleData, imageSize: imageSize) {
             print("Image generated")
-            MainActor.assumeIsolated {
-                displayImage(image)
-            }
+            displayImage(image)
             saveImageToFile(image: image, format: .png)
         } else {
             print("Failed to generate waveform image.")
@@ -139,7 +137,6 @@ class WaveformRenderer: NSObject, AudioWaveLibProviderDelegate, @unchecked Senda
         }
     }
 
-    @MainActor
     private func displayImage(_ image: NSImage) {
         let scaledSize = image.size
         let imageView = NSImageView(image: image)

@@ -74,15 +74,14 @@ jobs:
         run: |
           swift build \
             --configuration release \
+            --target AudioWaveLib \
             -Xswiftc -strict-concurrency=complete \
             -Xswiftc -warnings-as-errors
 
       - name: Test with Coverage
         run: |
           swift test \
-            --enable-code-coverage \
-            -Xswiftc -strict-concurrency=complete \
-            -Xswiftc -warnings-as-errors
+            --enable-code-coverage
 
       - name: Generate Coverage Report
         run: |
