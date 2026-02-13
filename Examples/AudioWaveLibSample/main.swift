@@ -54,7 +54,9 @@ class WaveformRenderer: NSObject, AudioWaveLibProviderDelegate, @unchecked Senda
         let imageSize = CGSize(width: 300, height: 100)
         if let image = generateWaveformImage(sampleData: sampleData, imageSize: imageSize) {
             print("Image generated")
-            displayImage(image)
+            MainActor.assumeIsolated {
+                displayImage(image)
+            }
             saveImageToFile(image: image, format: .png)
         } else {
             print("Failed to generate waveform image.")
@@ -137,24 +139,23 @@ class WaveformRenderer: NSObject, AudioWaveLibProviderDelegate, @unchecked Senda
         }
     }
 
+    @MainActor
     private func displayImage(_ image: NSImage) {
-        DispatchQueue.main.async { [self] in
-            let scaledSize = image.size
-            let imageView = NSImageView(image: image)
-            imageView.frame = NSRect(origin: .zero, size: scaledSize)
-            imageView.imageScaling = .scaleProportionallyUpOrDown
+        let scaledSize = image.size
+        let imageView = NSImageView(image: image)
+        imageView.frame = NSRect(origin: .zero, size: scaledSize)
+        imageView.imageScaling = .scaleProportionallyUpOrDown
 
-            let contentRect = NSRect(x: 0, y: 0, width: scaledSize.width, height: scaledSize.height)
-            window = NSWindow(
-                contentRect: contentRect,
-                styleMask: [.titled, .closable, .miniaturizable, .resizable],
-                backing: .buffered, defer: false
-            )
-            window?.backgroundColor = windowFillColor
-            window?.contentView = imageView
-            window?.makeKeyAndOrderFront(nil)
-            NSApp.activate(ignoringOtherApps: true)
-        }
+        let contentRect = NSRect(x: 0, y: 0, width: scaledSize.width, height: scaledSize.height)
+        window = NSWindow(
+            contentRect: contentRect,
+            styleMask: [.titled, .closable, .miniaturizable, .resizable],
+            backing: .buffered, defer: false
+        )
+        window?.backgroundColor = windowFillColor
+        window?.contentView = imageView
+        window?.makeKeyAndOrderFront(nil)
+        NSApp.activate(ignoringOtherApps: true)
     }
 
     private func saveImageToFile(image: NSImage, format: ImageFormat) {
