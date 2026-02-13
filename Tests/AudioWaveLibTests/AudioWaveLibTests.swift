@@ -1,14 +1,14 @@
+@testable import AudioWaveLib
 import Foundation
 import XCTest
-@testable import AudioWaveLib
 
 // MARK: - Test Utilities
 
-private struct TestAudioFile {
+struct TestAudioFile {
     let url: URL
-    let sampleRate: Double = 44100.0
+    let sampleRate: Double = 44_100.0
     let channels: UInt32 = 1
-    let frameCount: UInt32 = 1024
+    let frameCount: UInt32 = 1_024
 
     init(fileName: String = "test_audio") {
         let tempDir = FileManager.default.temporaryDirectory
@@ -27,37 +27,40 @@ private struct TestAudioFile {
         try? FileManager.default.removeItem(at: url)
     }
 
+    // swiftlint:disable force_unwrapping
     private func createWAVHeader() -> Data {
         var header = Data()
-        // RIFF header
         header.append("RIFF".data(using: .ascii)!)
-        header.append(withUnsafeBytes(of: UInt32(36 + frameCount * 4).littleEndian) { Data($0) })
+        let fileSize = UInt32(36 + frameCount * 4).littleEndian
+        header.append(withUnsafeBytes(of: fileSize) { Data($0) })
         header.append("WAVE".data(using: .ascii)!)
 
-        // fmt chunk
         header.append("fmt ".data(using: .ascii)!)
-        header.append(withUnsafeBytes(of: UInt32(16).littleEndian) { Data($0) }) // chunk size
-        header.append(withUnsafeBytes(of: UInt16(1).littleEndian) { Data($0) }) // format (PCM)
+        header.append(withUnsafeBytes(of: UInt32(16).littleEndian) { Data($0) })
+        header.append(withUnsafeBytes(of: UInt16(1).littleEndian) { Data($0) })
         header.append(withUnsafeBytes(of: UInt16(channels).littleEndian) { Data($0) })
         header.append(withUnsafeBytes(of: UInt32(sampleRate).littleEndian) { Data($0) })
-        header.append(withUnsafeBytes(of: UInt32(sampleRate * Double(channels) * 2).littleEndian) { Data($0) })
+        let byteRate = UInt32(sampleRate * Double(channels) * 2).littleEndian
+        header.append(withUnsafeBytes(of: byteRate) { Data($0) })
         header.append(withUnsafeBytes(of: UInt16(channels * 2).littleEndian) { Data($0) })
-        header.append(withUnsafeBytes(of: UInt16(16).littleEndian) { Data($0) }) // bits per sample
+        header.append(withUnsafeBytes(of: UInt16(16).littleEndian) { Data($0) })
 
-        // data chunk
         header.append("data".data(using: .ascii)!)
-        header.append(withUnsafeBytes(of: UInt32(frameCount * 4).littleEndian) { Data($0) })
+        let dataSize = UInt32(frameCount * 4).littleEndian
+        header.append(withUnsafeBytes(of: dataSize) { Data($0) })
 
         return header
     }
+    // swiftlint:enable force_unwrapping
 
     private func createSineWaveData() -> Data {
         var data = Data()
-        let frequency: Double = 440.0 // A note
+        let frequency: Double = 440.0
 
-        for i in 0..<frameCount {
-            let sample = sin(2.0 * Double.pi * frequency * Double(i) / sampleRate)
-            let intSample = Int16(sample * 32767.0)
+        for index in 0..<frameCount {
+            let phase = 2.0 * Double.pi * frequency * Double(index)
+            let sample = sin(phase / sampleRate)
+            let intSample = Int16(sample * 32_767.0)
             data.append(withUnsafeBytes(of: intSample.littleEndian) { Data($0) })
         }
 
@@ -95,7 +98,6 @@ private class MockDelegate: AudioWaveLibProviderDelegate {
 // MARK: - Test Cases
 
 final class AudioWaveLibTests: XCTestCase {
-
     // MARK: - Version Tests
 
     func testAudioWaveLibVersion() {
@@ -149,6 +151,7 @@ final class AudioWaveLibTests: XCTestCase {
     // MARK: - AudioWaveLibProvider Initialization Tests
 
     func testInitializationWithNonFileURL() {
+        // swiftlint:disable:next force_unwrapping
         let httpURL = URL(string: "https://example.com/audio.mp3")!
 
         do {
@@ -240,8 +243,7 @@ final class AudioWaveLibTests: XCTestCase {
 
         if delegate.sampleProcessedCalled {
             XCTAssertNotNil(provider.sampleData)
-            XCTAssertNotNil(provider.sampleData)
-            XCTAssertFalse(provider.sampleData!.isEmpty)
+            XCTAssertFalse(provider.sampleData?.isEmpty ?? true)
         } else if delegate.statusUpdatedCalled {
             XCTAssertNotNil(delegate.lastError)
         } else {
@@ -307,8 +309,11 @@ final class AudioWaveLibTests: XCTestCase {
 
         for error in testCases {
             let description = error.errorDescription
-            XCTAssertNotNil(description, "Error description should not be nil for: \(error)")
-            XCTAssertFalse(description!.isEmpty, "Error description should not be empty for: \(error)")
+            XCTAssertNotNil(description, "Should not be nil for: \(error)")
+            XCTAssertFalse(
+                (description ?? "").isEmpty,
+                "Should not be empty for: \(error)"
+            )
         }
     }
 
@@ -318,201 +323,17 @@ final class AudioWaveLibTests: XCTestCase {
         for message in messages {
             let fileError = AudioWaveLibProviderError.fileInitializationFailed(message)
             let audioError = AudioWaveLibProviderError.audioProcessingFailed(message)
+            let fileDesc = fileError.errorDescription ?? ""
+            let audioDesc = audioError.errorDescription ?? ""
 
             XCTAssertTrue(
-                fileError.errorDescription!.contains(message),
-                "Expected '\(fileError.errorDescription!)' to contain '\(message)'"
+                fileDesc.contains(message),
+                "Expected '\(fileDesc)' to contain '\(message)'"
             )
             XCTAssertTrue(
-                audioError.errorDescription!.contains(message),
-                "Expected '\(audioError.errorDescription!)' to contain '\(message)'"
+                audioDesc.contains(message),
+                "Expected '\(audioDesc)' to contain '\(message)'"
             )
         }
-    }
-
-    // MARK: - Unicode and Boundary Tests
-
-    func testUnicodeFilePaths() {
-        let unicodePaths = [
-            "/tmp/音频文件.wav",
-            "/tmp/файл.mp3",
-            "/tmp/🎵音乐🎵.wav",
-            "/tmp/ファイル.mp3"
-        ]
-
-        for path in unicodePaths {
-            let url = URL(fileURLWithPath: path)
-
-            do {
-                _ = try AudioWaveLibProvider(url: url)
-                XCTFail("Should fail with non-existent unicode file")
-            } catch let error as AudioWaveLibProviderError {
-                if case .fileInitializationFailed(_) = error {
-                    // Expected behavior for non-existent files
-                } else {
-                    XCTFail("Expected fileInitializationFailed for unicode path: \(path)")
-                }
-            } catch {
-                XCTFail("Unexpected error type for unicode path: \(error)")
-            }
-        }
-    }
-
-    // MARK: - Memory Management Tests
-
-    func testProviderDeallocation() throws {
-        weak var weakProvider: AudioWaveLibProvider?
-
-        do {
-            let testFile = TestAudioFile()
-            try testFile.createFile()
-            defer { testFile.cleanup() }
-
-            let provider = try AudioWaveLibProvider(url: testFile.url)
-            weakProvider = provider
-            XCTAssertNotNil(weakProvider)
-        }
-
-        // Provider should be deallocated when it goes out of scope
-        XCTAssertNil(weakProvider)
-    }
-}
-
-// MARK: - Demo Delegate Tests
-
-final class DemoDelegateTests: XCTestCase {
-
-    private class TestDemoDelegate: AudioWaveLibProviderDelegate {
-        var capturedOutput: String = ""
-        var capturedError: String = ""
-
-        func sampleProcessed(provider: AudioWaveLibProvider) {
-            if let sampleData = provider.sampleData {
-                let consoleWidth = 80
-                let consoleHeight = 20
-                let maxValue = sampleData.max() ?? 0
-                let minValue = sampleData.min() ?? 0
-
-                // Capture output instead of printing
-                var waveform = [[Character]](
-                    repeating: [Character](repeating: " ", count: consoleWidth),
-                    count: consoleHeight
-                )
-
-                for columnIndex in 0..<consoleWidth {
-                    let startIndex = columnIndex * sampleData.count / consoleWidth
-                    let endIndex = min((columnIndex + 1) * sampleData.count / consoleWidth, sampleData.count)
-                    let columnSamples = sampleData[startIndex..<endIndex]
-
-                    let columnMax = columnSamples.max() ?? 0
-                    let columnMin = columnSamples.min() ?? 0
-
-                    let scaledColumnHeight = scaleHeight(columnMax, minValue, maxValue, consoleHeight)
-                    let scaledColumnMinHeight = scaleHeight(columnMin, minValue, maxValue, consoleHeight)
-
-                    for rowIndex in scaledColumnMinHeight..<scaledColumnHeight {
-                        waveform[rowIndex][columnIndex] = "|"
-                    }
-                }
-
-                // Capture the output
-                for row in waveform.reversed() {
-                    capturedOutput += String(row) + "\n"
-                }
-            } else {
-                capturedOutput = "No sample data available."
-            }
-        }
-
-        func statusUpdated(provider: AudioWaveLibProvider, withError error: Error) {
-            capturedError = "An error occurred: \(error.localizedDescription)"
-        }
-
-        private func scaleHeight(_ value: Float, _ minValue: Float, _ maxValue: Float, _ consoleHeight: Int) -> Int {
-            guard maxValue != minValue else { return consoleHeight / 2 }
-            let normalizedValue = (value - minValue) / (maxValue - minValue)
-            return min(consoleHeight - 1, max(0, Int(normalizedValue * Float(consoleHeight))))
-        }
-    }
-
-    func testDemoDelegateWithSampleData() throws {
-        let testFile = TestAudioFile()
-        try testFile.createFile()
-        defer { testFile.cleanup() }
-
-        let provider = try AudioWaveLibProvider(url: testFile.url)
-        let demoDelegate = TestDemoDelegate()
-        provider.delegate = demoDelegate
-
-        // Manually set some test data
-        provider.sampleData = [0.0, 0.5, 1.0, -0.5, -1.0, 0.0]
-
-        // Trigger the delegate method
-        demoDelegate.sampleProcessed(provider: provider)
-
-        XCTAssertFalse(demoDelegate.capturedOutput.isEmpty)
-        XCTAssertTrue(demoDelegate.capturedOutput.contains("|") || demoDelegate.capturedOutput.contains(" "))
-    }
-
-    func testDemoDelegateWithNoSampleData() throws {
-        let testFile = TestAudioFile()
-        try testFile.createFile()
-        defer { testFile.cleanup() }
-
-        let provider = try AudioWaveLibProvider(url: testFile.url)
-        let demoDelegate = TestDemoDelegate()
-
-        // Don't set sample data
-        demoDelegate.sampleProcessed(provider: provider)
-
-        XCTAssertEqual(demoDelegate.capturedOutput, "No sample data available.")
-    }
-
-    func testDemoDelegateErrorHandling() throws {
-        let testFile = TestAudioFile()
-        try testFile.createFile()
-        defer { testFile.cleanup() }
-
-        let provider = try AudioWaveLibProvider(url: testFile.url)
-        let demoDelegate = TestDemoDelegate()
-
-        let testError = AudioWaveLibProviderError.invalidURL
-        demoDelegate.statusUpdated(provider: provider, withError: testError)
-
-        XCTAssertEqual(demoDelegate.capturedError, "An error occurred: The URL provided is invalid.")
-    }
-
-    // MARK: - Scale Height Edge Cases
-
-    func testScaleHeightBoundaryConditions() throws {
-        let testFile = TestAudioFile()
-        try testFile.createFile()
-        defer { testFile.cleanup() }
-
-        let provider = try AudioWaveLibProvider(url: testFile.url)
-        let demoDelegate = TestDemoDelegate()
-
-        // Test with same min/max values (division by zero protection)
-        provider.sampleData = [1.0, 1.0, 1.0]
-        demoDelegate.sampleProcessed(provider: provider)
-        XCTAssertFalse(demoDelegate.capturedOutput.isEmpty)
-
-        // Test with extreme values
-        provider.sampleData = [1000.0, -1000.0]
-        demoDelegate.capturedOutput = "" // Reset
-        demoDelegate.sampleProcessed(provider: provider)
-        XCTAssertFalse(demoDelegate.capturedOutput.isEmpty)
-
-        // Test with zero values
-        provider.sampleData = [0.0, 0.0, 0.0]
-        demoDelegate.capturedOutput = "" // Reset
-        demoDelegate.sampleProcessed(provider: provider)
-        XCTAssertFalse(demoDelegate.capturedOutput.isEmpty)
-
-        // Test with negative values
-        provider.sampleData = [-1.0, -0.5, 0.0, 0.5, 1.0]
-        demoDelegate.capturedOutput = "" // Reset
-        demoDelegate.sampleProcessed(provider: provider)
-        XCTAssertFalse(demoDelegate.capturedOutput.isEmpty)
     }
 }

@@ -2,7 +2,7 @@ import AVFoundation
 import Foundation
 
 /// The current version of AudioWaveLib.
-public let audioWaveLibVersion = "0.0.2"
+public let audioWaveLibVersion = "0.0.2" // swiftlint:disable:this prefixed_toplevel_constant
 
 /// An enumeration representing the possible errors that can occur in the AudioWaveLibProvider.
 public enum AudioWaveLibProviderError: Error, Equatable {
@@ -46,14 +46,14 @@ public protocol AudioWaveLibProviderDelegate: AnyObject {
 
 /// Configuration for chunked audio processing
 public struct AudioProcessingConfig: Sendable {
-    /// Maximum buffer size per chunk in frames (default: 1024 * 1024 = ~23 seconds at 44.1kHz)
+    /// Maximum buffer size per chunk in frames (default: 1_048_576 = ~23 seconds at 44.1kHz)
     public let maxChunkSize: AVAudioFrameCount
     /// Maximum total memory usage in bytes (default: 100MB)
     public let maxMemoryUsage: Int
 
     public init(
-        maxChunkSize: AVAudioFrameCount = 1024 * 1024,
-        maxMemoryUsage: Int = 100 * 1024 * 1024
+        maxChunkSize: AVAudioFrameCount = 1_048_576,
+        maxMemoryUsage: Int = 104_857_600
     ) {
         self.maxChunkSize = maxChunkSize
         self.maxMemoryUsage = maxMemoryUsage
@@ -64,8 +64,8 @@ public struct AudioProcessingConfig: Sendable {
 
     /// Lightweight configuration for memory-constrained environments
     public static let lightweight = AudioProcessingConfig(
-        maxChunkSize: 256 * 1024, // ~6 seconds at 44.1kHz
-        maxMemoryUsage: 50 * 1024 * 1024 // 50MB
+        maxChunkSize: 262_144,
+        maxMemoryUsage: 52_428_800
     )
 }
 
@@ -126,7 +126,10 @@ public class AudioWaveLibProvider {
 
     public func createSampleData(config: AudioProcessingConfig) {
         guard let audioFile else {
-            delegate?.statusUpdated(provider: self, withError: AudioWaveLibProviderError.invalidFrameCountOrFormat)
+            delegate?.statusUpdated(
+                provider: self,
+                withError: AudioWaveLibProviderError.invalidFrameCountOrFormat
+            )
             return
         }
 
@@ -134,115 +137,145 @@ public class AudioWaveLibProvider {
 
         let task = DispatchWorkItem { [weak self] in
             guard let self else { return }
-
-            let totalFrameCount = AVAudioFrameCount(audioFile.length)
-            guard totalFrameCount > 0 else {
-                DispatchQueue.main.async {
-                    self.delegate?.statusUpdated(
-                        provider: self,
-                        withError: AudioWaveLibProviderError.invalidFrameCountOrFormat
-                    )
-                }
-                return
-            }
-
-            // Calculate memory usage and validate constraints
-            let bytesPerFrame = audioFile.processingFormat.channelCount * 4 // Float32
-            let totalMemoryNeeded = Int(totalFrameCount) * Int(bytesPerFrame)
-
-            if totalMemoryNeeded > config.maxMemoryUsage {
-                DispatchQueue.main.async {
-                    self.delegate?.statusUpdated(
-                        provider: self,
-                        withError: AudioWaveLibProviderError.audioProcessingFailed(
-                            "File too large: requires \(totalMemoryNeeded / (1024*1024))MB, limit is \(config.maxMemoryUsage / (1024*1024))MB"
-                        )
-                    )
-                }
-                return
-            }
-
-            var allSamples: [Float] = []
-            let initialCapacity = min(Int(totalFrameCount), Int(config.maxChunkSize))
-            allSamples.reserveCapacity(initialCapacity)
-
-            let chunkSize = min(config.maxChunkSize, totalFrameCount)
-            var currentFrame: AVAudioFramePosition = 0
-            var processingError: Error?
-
-            while currentFrame < audioFile.length {
-                var shouldStop = false
-                autoreleasepool {
-                    let currentMemoryUsage = allSamples.count * MemoryLayout<Float>.size
-                    if currentMemoryUsage > config.maxMemoryUsage {
-                        processingError = AudioWaveLibProviderError.audioProcessingFailed(
-                            "Memory limit exceeded during processing: \(currentMemoryUsage / (1024*1024))MB > \(config.maxMemoryUsage / (1024*1024))MB"
-                        )
-                        shouldStop = true
-                        return
-                    }
-
-                    let remainingFrames = audioFile.length - currentFrame
-                    let framesToRead = min(AVAudioFrameCount(remainingFrames), chunkSize)
-
-                    do {
-                        audioFile.framePosition = currentFrame
-
-                        guard let chunkBuffer = AVAudioPCMBuffer(
-                            pcmFormat: audioFile.processingFormat,
-                            frameCapacity: framesToRead
-                        ) else {
-                            processingError = AudioWaveLibProviderError.audioProcessingFailed(
-                                "Failed to allocate chunk buffer"
-                            )
-                            shouldStop = true
-                            return
-                        }
-
-                        try audioFile.read(into: chunkBuffer)
-
-                        if let channelData = chunkBuffer.floatChannelData?.pointee {
-                            let chunkSamples = UnsafeBufferPointer(
-                                start: channelData,
-                                count: Int(chunkBuffer.frameLength)
-                            )
-                            allSamples.append(contentsOf: chunkSamples)
-                        }
-
-                        currentFrame += AVAudioFramePosition(chunkBuffer.frameLength)
-
-                        if self.processingTask?.isCancelled ?? false {
-                            shouldStop = true
-                        }
-                    } catch {
-                        processingError = error
-                        shouldStop = true
-                    }
-                }
-                if shouldStop { break }
-            }
-
-            if let error = processingError {
-                DispatchQueue.main.async {
-                    self.delegate?.statusUpdated(provider: self, withError: error)
-                }
-                return
-            }
-
-            if self.processingTask?.isCancelled ?? false {
-                return
-            }
-
-            // Store the complete sample data
-            self.sampleData = allSamples
-
-            DispatchQueue.main.async {
-                self.delegate?.sampleProcessed(provider: self)
-            }
+            self.processAudioFile(audioFile, config: config)
         }
 
         processingTask = task
         DispatchQueue.global(qos: .userInitiated).async(execute: task)
     }
-}
 
+    private func processAudioFile(
+        _ audioFile: AVAudioFile,
+        config: AudioProcessingConfig
+    ) {
+        let totalFrameCount = AVAudioFrameCount(audioFile.length)
+        guard totalFrameCount > 0 else {
+            DispatchQueue.main.async {
+                self.delegate?.statusUpdated(
+                    provider: self,
+                    withError: AudioWaveLibProviderError.invalidFrameCountOrFormat
+                )
+            }
+            return
+        }
+
+        if let error = validateMemoryConstraints(audioFile, config: config) {
+            DispatchQueue.main.async {
+                self.delegate?.statusUpdated(provider: self, withError: error)
+            }
+            return
+        }
+
+        let result = readChunkedSamples(
+            from: audioFile,
+            totalFrameCount: totalFrameCount,
+            config: config
+        )
+
+        if let error = result.error {
+            DispatchQueue.main.async {
+                self.delegate?.statusUpdated(provider: self, withError: error)
+            }
+            return
+        }
+
+        if self.processingTask?.isCancelled ?? false { return }
+
+        self.sampleData = result.samples
+
+        DispatchQueue.main.async {
+            self.delegate?.sampleProcessed(provider: self)
+        }
+    }
+
+    private func validateMemoryConstraints(
+        _ audioFile: AVAudioFile,
+        config: AudioProcessingConfig
+    ) -> AudioWaveLibProviderError? {
+        let bytesPerFrame = audioFile.processingFormat.channelCount * 4
+        let totalMemoryNeeded = Int(audioFile.length) * Int(bytesPerFrame)
+        let megabyteDivisor = 1_048_576
+
+        guard totalMemoryNeeded <= config.maxMemoryUsage else {
+            return .audioProcessingFailed(
+                "File too large: requires \(totalMemoryNeeded / megabyteDivisor)MB, "
+                    + "limit is \(config.maxMemoryUsage / megabyteDivisor)MB"
+            )
+        }
+        return nil
+    }
+
+    // swiftlint:disable:next function_body_length
+    private func readChunkedSamples(
+        from audioFile: AVAudioFile,
+        totalFrameCount: AVAudioFrameCount,
+        config: AudioProcessingConfig
+    ) -> (samples: [Float], error: Error?) {
+        var allSamples: [Float] = []
+        allSamples.reserveCapacity(min(Int(totalFrameCount), Int(config.maxChunkSize)))
+
+        let chunkSize = min(config.maxChunkSize, totalFrameCount)
+        var currentFrame: AVAudioFramePosition = 0
+        let megabyteDivisor = 1_048_576
+
+        while currentFrame < audioFile.length {
+            var shouldStop = false
+            var chunkError: Error?
+
+            autoreleasepool {
+                let currentMemoryUsage = allSamples.count * MemoryLayout<Float>.size
+                if currentMemoryUsage > config.maxMemoryUsage {
+                    chunkError = AudioWaveLibProviderError.audioProcessingFailed(
+                        "Memory limit exceeded: "
+                            + "\(currentMemoryUsage / megabyteDivisor)MB "
+                            + "> \(config.maxMemoryUsage / megabyteDivisor)MB"
+                    )
+                    shouldStop = true
+                    return
+                }
+
+                let remainingFrames = audioFile.length - currentFrame
+                let framesToRead = min(AVAudioFrameCount(remainingFrames), chunkSize)
+
+                do {
+                    audioFile.framePosition = currentFrame
+                    guard let chunkBuffer = AVAudioPCMBuffer(
+                        pcmFormat: audioFile.processingFormat,
+                        frameCapacity: framesToRead
+                    ) else {
+                        chunkError = AudioWaveLibProviderError.audioProcessingFailed(
+                            "Failed to allocate chunk buffer"
+                        )
+                        shouldStop = true
+                        return
+                    }
+
+                    try audioFile.read(into: chunkBuffer)
+
+                    if let channelData = chunkBuffer.floatChannelData?.pointee {
+                        let chunkSamples = UnsafeBufferPointer(
+                            start: channelData,
+                            count: Int(chunkBuffer.frameLength)
+                        )
+                        allSamples.append(contentsOf: chunkSamples)
+                    }
+
+                    currentFrame += AVAudioFramePosition(chunkBuffer.frameLength)
+
+                    if self.processingTask?.isCancelled ?? false {
+                        shouldStop = true
+                    }
+                } catch {
+                    chunkError = error
+                    shouldStop = true
+                }
+            }
+
+            if shouldStop {
+                return (allSamples, chunkError)
+            }
+        }
+
+        return (allSamples, nil)
+    }
+}
