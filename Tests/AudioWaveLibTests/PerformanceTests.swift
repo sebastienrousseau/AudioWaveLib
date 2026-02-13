@@ -15,7 +15,7 @@ final class AudioWaveLibPerformanceTests: XCTestCase {
         let sampleRate: UInt32 = 44_100
         let channels: UInt16 = 1
         let bitsPerSample: UInt16 = 16
-        let frequency: Double = 440.0
+        let frequency = 440.0
 
         var data = Data()
 
@@ -48,7 +48,7 @@ final class AudioWaveLibPerformanceTests: XCTestCase {
         let dataSize = UInt32(frameCount * 2).littleEndian
         data.append(withUnsafeBytes(of: dataSize) { Data($0) })
 
-        for index in 0..<frameCount {
+        for index in 0 ..< frameCount {
             let phase = 2.0 * Double.pi * frequency * Double(index)
             let sample = sin(phase / Double(sampleRate))
             let intSample = Int16(sample * 32_767.0)
@@ -61,7 +61,7 @@ final class AudioWaveLibPerformanceTests: XCTestCase {
 
     // MARK: - Baseline Performance Tests
 
-    func testAudioFileInitializationPerformance() throws {
+    func testAudioFileInitializationPerformance() {
         let url = createTestFile(frameCount: 44_100)
         defer { try? FileManager.default.removeItem(at: url) }
 
@@ -106,7 +106,7 @@ final class AudioWaveLibPerformanceTests: XCTestCase {
 
     // MARK: - Memory Performance Tests
 
-    func testMemoryUsageUnderLoad() throws {
+    func testMemoryUsageUnderLoad() {
         let url = createTestFile(frameCount: 441_000)
         defer { try? FileManager.default.removeItem(at: url) }
 
@@ -136,7 +136,7 @@ final class AudioWaveLibPerformanceTests: XCTestCase {
         let provider = try AudioWaveLibProvider(url: url)
 
         measure(metrics: [XCTMemoryMetric()]) {
-            for _ in 0..<10 {
+            for _ in 0 ..< 10 {
                 autoreleasepool {
                     let exp = XCTestExpectation(description: "Iteration")
                     let delegate = MockPerformanceDelegate(expectation: exp)
@@ -163,7 +163,7 @@ final class AudioWaveLibPerformanceTests: XCTestCase {
         wait(for: [exp], timeout: 30.0)
 
         measure {
-            for _ in 0..<1_000 {
+            for _ in 0 ..< 1_000 {
                 _ = provider.sampleData
             }
         }
@@ -179,11 +179,11 @@ private class MockPerformanceDelegate: AudioWaveLibProviderDelegate {
         self.expectation = expectation
     }
 
-    func sampleProcessed(provider: AudioWaveLibProvider) {
+    func sampleProcessed(provider _: AudioWaveLibProvider) {
         expectation.fulfill()
     }
 
-    func statusUpdated(provider: AudioWaveLibProvider, withError error: Error) {
+    func statusUpdated(provider _: AudioWaveLibProvider, withError _: Error) {
         expectation.fulfill()
     }
 }

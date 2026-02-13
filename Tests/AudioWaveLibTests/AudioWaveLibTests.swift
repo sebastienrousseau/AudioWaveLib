@@ -12,7 +12,7 @@ struct TestAudioFile {
 
     init(fileName: String = "test_audio") {
         let tempDir = FileManager.default.temporaryDirectory
-        self.url = tempDir.appendingPathComponent("\(fileName).wav")
+        url = tempDir.appendingPathComponent("\(fileName).wav")
     }
 
     func createFile() throws {
@@ -51,13 +51,14 @@ struct TestAudioFile {
 
         return header
     }
+
     // swiftlint:enable force_unwrapping
 
     private func createSineWaveData() -> Data {
         var data = Data()
-        let frequency: Double = 440.0
+        let frequency = 440.0
 
-        for index in 0..<frameCount {
+        for index in 0 ..< frameCount {
             let phase = 2.0 * Double.pi * frequency * Double(index)
             let sample = sin(phase / sampleRate)
             let intSample = Int16(sample * 32_767.0)
@@ -76,12 +77,12 @@ private class MockDelegate: AudioWaveLibProviderDelegate {
     var lastError: Error?
     var expectation: XCTestExpectation?
 
-    func sampleProcessed(provider: AudioWaveLibProvider) {
+    func sampleProcessed(provider _: AudioWaveLibProvider) {
         sampleProcessedCalled = true
         expectation?.fulfill()
     }
 
-    func statusUpdated(provider: AudioWaveLibProvider, withError error: Error) {
+    func statusUpdated(provider _: AudioWaveLibProvider, withError error: Error) {
         statusUpdatedCalled = true
         lastError = error
         expectation?.fulfill()
@@ -150,9 +151,8 @@ final class AudioWaveLibTests: XCTestCase {
 
     // MARK: - AudioWaveLibProvider Initialization Tests
 
-    func testInitializationWithNonFileURL() {
-        // swiftlint:disable:next force_unwrapping
-        let httpURL = URL(string: "https://example.com/audio.mp3")!
+    func testInitializationWithNonFileURL() throws {
+        let httpURL = try XCTUnwrap(URL(string: "https://example.com/audio.mp3"))
 
         do {
             _ = try AudioWaveLibProvider(url: httpURL)
@@ -171,7 +171,7 @@ final class AudioWaveLibTests: XCTestCase {
             _ = try AudioWaveLibProvider(url: nonExistentURL)
             XCTFail("Expected fileInitializationFailed error")
         } catch let error as AudioWaveLibProviderError {
-            if case .fileInitializationFailed(let message) = error {
+            if case let .fileInitializationFailed(message) = error {
                 XCTAssertFalse(message.isEmpty)
             } else {
                 XCTFail("Expected fileInitializationFailed error, got: \(error)")
@@ -285,7 +285,7 @@ final class AudioWaveLibTests: XCTestCase {
         delegate.expectation = expectation
 
         // Make multiple concurrent calls
-        for _ in 0..<5 {
+        for _ in 0 ..< 5 {
             provider.createSampleData()
         }
 

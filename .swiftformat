@@ -1,63 +1,51 @@
 # SwiftFormat Configuration for AudioWaveLib
-# Enforces consistent Swift code formatting
 
 # File exclusions
---exclude .build,.swiftpm,Examples/AudioWaveLibSample/main.swift
+--exclude .build,.swiftpm,Examples
 
 # Indentation
 --indent 4
---tabwidth 4
---smarttabs enabled
+--tab-width 4
+--smart-tabs enabled
 
 # Line length
---maxwidth 120
+--max-width 120
 
 # Braces and spacing
 --allman false
---wraparguments preserve
---wrapparameters preserve
---wrapcollections preserve
---closingparen balanced
---commas always
+--wrap-arguments preserve
+--wrap-parameters preserve
+--wrap-collections preserve
+--closing-paren balanced
+--trailing-commas always
 --semicolons never
---trimwhitespace always
+--trim-whitespace always
 
 # Import organization
---importgrouping alphabetical
+--import-grouping alpha
 
-# Redundant code removal
---redundantget true
---redundantinit true
---redundantlet true
---redundantletinit true
---redundantnil true
---redundantparens true
---redundantpattern true
---redundantrawvalues true
---redundantself remove
---redundanttype inferred
---redundantvoidreturntype true
+# Self
+--self remove
 
 # Void return type
---voidtype void
+--void-type void
 
 # Enum formatting
---enumnamespaces always
-
-# Access control
---sortedimports true
+--enum-namespaces always
 
 # Operator spacing
---operatorfunc spaced
-
-# Generic type formatting
---generictypes angle-brackets
+--operator-func spaced
 
 # Header formatting
 --header strip
 
-# Specific formatting rules
+# Rules
 --disable blankLinesAtEndOfScope
+--disable numberFormatting
+--disable noForceUnwrapInTests
 --enable isEmpty
---enable sortedImports
+--enable sortImports
 --enable redundantSelf
+
+# Trailing commas - match SwiftLint preference (no trailing commas)
+--trailing-commas never

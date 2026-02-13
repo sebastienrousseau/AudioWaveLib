@@ -73,14 +73,14 @@ public struct AudioProcessingConfig: Sendable {
 public class AudioWaveLibProvider {
     private var audioFile: AVAudioFile?
 
-    // High-performance atomic wrapper using os_unfair_lock for visualization hot paths
-    // Benchmarked 50% faster than DispatchQueue-based implementation (2.4M vs 1.2M ops/sec)
+    /// High-performance atomic wrapper using os_unfair_lock for visualization hot paths
+    /// Benchmarked 50% faster than DispatchQueue-based implementation (2.4M vs 1.2M ops/sec)
     private final class AtomicReference<T> {
         private var _value: T
         private var _lock = os_unfair_lock()
 
         init(_ value: T) {
-            self._value = value
+            _value = value
         }
 
         var value: T {
@@ -97,7 +97,7 @@ public class AudioWaveLibProvider {
         }
     }
 
-    // High-performance sample data storage using os_unfair_lock atomic wrapper
+    /// High-performance sample data storage using os_unfair_lock atomic wrapper
     private let _atomicSampleData = AtomicReference<[Float]?>(nil)
 
     /// Thread-safe access to processed audio sample data.
@@ -137,7 +137,7 @@ public class AudioWaveLibProvider {
 
         let task = DispatchWorkItem { [weak self] in
             guard let self else { return }
-            self.processAudioFile(audioFile, config: config)
+            processAudioFile(audioFile, config: config)
         }
 
         processingTask = task
@@ -179,9 +179,9 @@ public class AudioWaveLibProvider {
             return
         }
 
-        if self.processingTask?.isCancelled ?? false { return }
+        if processingTask?.isCancelled ?? false { return }
 
-        self.sampleData = result.samples
+        sampleData = result.samples
 
         DispatchQueue.main.async {
             self.delegate?.sampleProcessed(provider: self)

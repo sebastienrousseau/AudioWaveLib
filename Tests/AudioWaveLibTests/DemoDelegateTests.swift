@@ -19,13 +19,13 @@ final class DemoDelegateTests: XCTestCase {
                     count: consoleHeight
                 )
 
-                for columnIndex in 0..<consoleWidth {
+                for columnIndex in 0 ..< consoleWidth {
                     let startIdx = columnIndex * sampleData.count / consoleWidth
                     let endIdx = min(
                         (columnIndex + 1) * sampleData.count / consoleWidth,
                         sampleData.count
                     )
-                    let columnSamples = sampleData[startIdx..<endIdx]
+                    let columnSamples = sampleData[startIdx ..< endIdx]
 
                     let columnMax = columnSamples.max() ?? 0
                     let columnMin = columnSamples.min() ?? 0
@@ -37,7 +37,7 @@ final class DemoDelegateTests: XCTestCase {
                         columnMin, minValue, maxValue, consoleHeight
                     )
 
-                    for rowIndex in scaledMin..<scaledMax {
+                    for rowIndex in scaledMin ..< scaledMax {
                         waveform[rowIndex][columnIndex] = "|"
                     }
                 }
@@ -51,7 +51,7 @@ final class DemoDelegateTests: XCTestCase {
         }
 
         func statusUpdated(
-            provider: AudioWaveLibProvider,
+            provider _: AudioWaveLibProvider,
             withError error: Error
         ) {
             capturedError = "An error occurred: \(error.localizedDescription)"
