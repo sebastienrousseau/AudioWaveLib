@@ -20,7 +20,7 @@ class DemoDelegate: NSObject, AudioWaveLibProviderDelegate {
     func sampleProcessed(provider: AudioWaveLibProvider) {
         print("Sample processed")
         // Retrieve sample data from the provider.
-        guard let sampleData = provider.getSampleData() else {
+        guard let sampleData = provider.sampleData else {
             print("No sample data available.")
             return
         }

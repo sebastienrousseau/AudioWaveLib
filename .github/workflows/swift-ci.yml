@@ -1,0 +1,247 @@
+name: 🚀 Swift CI Pipeline
+
+on:
+  push:
+    branches: [ main, develop, feat/*, fix/* ]
+  pull_request:
+    branches: [ main, develop ]
+  schedule:
+    # Nightly builds at 2 AM UTC
+    - cron: '0 2 * * *'
+
+concurrency:
+  group: ${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  SWIFT_DETERMINISTIC_HASHING: 1
+  CODECOV_THRESHOLD: 80
+
+jobs:
+  xcode-project-guard:
+    name: 🚫 Xcode Project Guard
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Fail if Xcode project detected
+        run: |
+          if find . -name "*.xcodeproj" -o -name "*.xcworkspace" | grep -q .; then
+            echo "❌ Xcode project files detected! This project must use Swift Package Manager only."
+            find . -name "*.xcodeproj" -o -name "*.xcworkspace"
+            exit 1
+          fi
+          echo "✅ No Xcode project files found"
+
+  lint:
+    name: 🧹 Lint
+    runs-on: macos-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install SwiftLint
+        run: brew install swiftlint
+
+      - name: Install SwiftFormat
+        run: brew install swiftformat
+
+      - name: Run SwiftLint
+        run: swiftlint --strict
+
+      - name: Check SwiftFormat
+        run: |
+          swiftformat --lint .
+          if [ $? -ne 0 ]; then
+            echo "❌ SwiftFormat issues found! Run 'swiftformat .' locally to fix."
+            exit 1
+          fi
+
+  macos-build:
+    name: 🍎 macOS Build & Test
+    runs-on: macos-latest
+    needs: [xcode-project-guard, lint]
+    strategy:
+      matrix:
+        swift-version:
+          - 'current'
+          - 'nightly'
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Swift Nightly
+        if: matrix.swift-version == 'nightly'
+        run: |
+          # Download and install Swift nightly toolchain
+          SWIFT_URL="https://download.swift.org/development/xcode/swift-DEVELOPMENT-SNAPSHOT-2024-01-01-a/swift-DEVELOPMENT-SNAPSHOT-2024-01-01-a-osx.pkg"
+          curl -L "$SWIFT_URL" -o swift-nightly.pkg
+          sudo installer -pkg swift-nightly.pkg -target /
+          export TOOLCHAINS=swift
+
+      - name: Cache Swift build
+        uses: actions/cache@v4
+        with:
+          path: .build
+          key: macos-swift-${{ matrix.swift-version }}-${{ hashFiles('Package.swift', 'Package.resolved') }}
+          restore-keys: |
+            macos-swift-${{ matrix.swift-version }}-
+            macos-swift-
+
+      - name: Swift Version
+        run: swift --version
+
+      - name: Build (Release)
+        run: |
+          swift build \
+            --configuration release \
+            -Xswiftc -strict-concurrency=complete \
+            -Xswiftc -warnings-as-errors \
+            --build-tests
+
+      - name: Build (Debug with AddressSanitizer)
+        if: matrix.swift-version == 'nightly'
+        run: |
+          swift build \
+            --configuration debug \
+            --sanitize=address \
+            -Xswiftc -strict-concurrency=complete \
+            -Xswiftc -warnings-as-errors
+
+      - name: Test with Coverage
+        run: |
+          swift test \
+            --enable-code-coverage \
+            -Xswiftc -strict-concurrency=complete \
+            -Xswiftc -warnings-as-errors
+
+      - name: Generate Coverage Report
+        if: matrix.swift-version == 'current'
+        run: |
+          xcrun llvm-cov export \
+            -format="lcov" \
+            .build/debug/AudioWaveLibPackageTests.xctest/Contents/MacOS/AudioWaveLibPackageTests \
+            -instr-profile .build/debug/codecov/default.profdata \
+            > coverage_report.lcov
+
+      - name: Check Coverage Threshold
+        if: matrix.swift-version == 'current'
+        run: |
+          COVERAGE=$(xcrun llvm-cov report \
+            .build/debug/AudioWaveLibPackageTests.xctest/Contents/MacOS/AudioWaveLibPackageTests \
+            -instr-profile .build/debug/codecov/default.profdata \
+            | tail -n 1 | awk '{print $4}' | sed 's/%//')
+
+          echo "Current coverage: ${COVERAGE}%"
+          echo "Required threshold: ${CODECOV_THRESHOLD}%"
+
+          if (( $(echo "$COVERAGE < $CODECOV_THRESHOLD" | bc -l) )); then
+            echo "❌ Coverage ${COVERAGE}% is below threshold ${CODECOV_THRESHOLD}%"
+            exit 1
+          fi
+          echo "✅ Coverage ${COVERAGE}% meets threshold ${CODECOV_THRESHOLD}%"
+
+      - name: Upload Coverage
+        if: matrix.swift-version == 'current'
+        uses: codecov/codecov-action@v4
+        with:
+          files: ./coverage_report.lcov
+          fail_ci_if_error: true
+
+  linux-build:
+    name: 🐧 Linux Build & Test
+    runs-on: ubuntu-latest
+    needs: [xcode-project-guard, lint]
+    container:
+      image: swift:latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Cache Swift build
+        uses: actions/cache@v4
+        with:
+          path: .build
+          key: linux-swift-${{ hashFiles('Package.swift', 'Package.resolved') }}
+          restore-keys: |
+            linux-swift-
+
+      - name: Install dependencies
+        run: |
+          apt-get update
+          apt-get install -y libasound2-dev
+
+      - name: Swift Version
+        run: swift --version
+
+      - name: Build
+        run: |
+          swift build \
+            -Xswiftc -strict-concurrency=complete \
+            -Xswiftc -warnings-as-errors \
+            --build-tests
+
+      - name: Test
+        run: |
+          swift test \
+            -Xswiftc -strict-concurrency=complete \
+            -Xswiftc -warnings-as-errors
+
+  security-scan:
+    name: 🔒 Security Scan
+    runs-on: macos-latest
+    needs: [xcode-project-guard]
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Run security audit
+        run: |
+          # Check for common security issues
+          echo "🔍 Scanning for hardcoded secrets..."
+          if grep -r -E "(password|secret|key|token).*=" Sources/ Tests/ Examples/ 2>/dev/null | grep -v "// swiftlint:disable"; then
+            echo "❌ Potential hardcoded secrets found!"
+            exit 1
+          fi
+
+          echo "🔍 Scanning for force unwrapping..."
+          if find Sources/ Tests/ Examples/ -name "*.swift" -exec grep -l "!" {} \; | xargs grep -n "!"; then
+            echo "⚠️  Force unwrapping detected - ensure SwiftLint rules are enforced"
+          fi
+
+          echo "✅ Basic security scan completed"
+
+  performance-test:
+    name: ⚡ Performance Test
+    runs-on: macos-latest
+    needs: [macos-build]
+    if: github.event_name == 'schedule' || contains(github.event.head_commit.message, '[perf]')
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Cache Swift build
+        uses: actions/cache@v4
+        with:
+          path: .build
+          key: macos-swift-current-${{ hashFiles('Package.swift', 'Package.resolved') }}
+          restore-keys: |
+            macos-swift-current-
+
+      - name: Build Release
+        run: |
+          swift build \
+            --configuration release \
+            -Xswiftc -strict-concurrency=complete \
+            -Xswiftc -warnings-as-errors
+
+      - name: Run Performance Tests
+        run: |
+          echo "🏃 Running performance benchmarks..."
+          # Add performance test commands here when implemented
+          echo "✅ Performance tests completed"

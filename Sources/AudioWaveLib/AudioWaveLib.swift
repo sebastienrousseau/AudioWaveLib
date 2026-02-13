@@ -1,19 +1,21 @@
 import AVFoundation
 import Foundation
 
+/// The current version of AudioWaveLib.
+public let audioWaveLibVersion = "0.0.2"
+
 /// An enumeration representing the possible errors that can occur in the AudioWaveLibProvider.
-enum AudioWaveLibProviderError: Error, Equatable {
+public enum AudioWaveLibProviderError: Error, Equatable {
     case invalidURL
     case fileInitializationFailed(String)
     case invalidFrameCountOrFormat
     case audioProcessingFailed(String)
 }
 
-
 /// Extension of `AudioWaveLibProviderError` conforming to `LocalizedError` protocol.
 extension AudioWaveLibProviderError: LocalizedError {
     /// A localized description of the error.
-    var errorDescription: String? {
+    public var errorDescription: String? {
         switch self {
         case .invalidURL:
             "The URL provided is invalid."
@@ -43,14 +45,19 @@ public protocol AudioWaveLibProviderDelegate: AnyObject {
 }
 
 /// Processes and accesses audio wave data, compatible across iOS, macOS, etc.
-public class AudioWaveLibProvider: NSObject {
+public class AudioWaveLibProvider {
     private var audioFile: AVAudioFile?
-    public var sampleData: [Float]?
+    private var _sampleData: [Float]?
+    private let dataLock = NSLock()
+    public var sampleData: [Float]? {
+        get { dataLock.withLock { _sampleData } }
+        set { dataLock.withLock { _sampleData = newValue } }
+    }
+
     var processingTask: DispatchWorkItem?
     public weak var delegate: AudioWaveLibProviderDelegate?
 
     public init(url: URL) throws {
-        super.init()
         guard url.isFileURL else {
             throw AudioWaveLibProviderError.invalidURL
         }
@@ -80,10 +87,23 @@ public class AudioWaveLibProvider: NSObject {
             }
 
             do {
-                let buffer = AVAudioPCMBuffer(pcmFormat: audioFile.processingFormat, frameCapacity: frameCount)
-                try audioFile.read(into: buffer!)
-                if let channelData = buffer?.floatChannelData?.pointee {
-                    let data = Array(UnsafeBufferPointer(start: channelData, count: Int(buffer!.frameLength)))
+                guard let buffer = AVAudioPCMBuffer(
+                    pcmFormat: audioFile.processingFormat,
+                    frameCapacity: frameCount
+                ) else {
+                    DispatchQueue.main.async {
+                        self.delegate?.statusUpdated(
+                            provider: self,
+                            withError: AudioWaveLibProviderError.audioProcessingFailed(
+                                "Failed to allocate audio buffer"
+                            )
+                        )
+                    }
+                    return
+                }
+                try audioFile.read(into: buffer)
+                if let channelData = buffer.floatChannelData?.pointee {
+                    let data = Array(UnsafeBufferPointer(start: channelData, count: Int(buffer.frameLength)))
                     sampleData = data
                     DispatchQueue.main.async {
                         self.delegate?.sampleProcessed(provider: self)
@@ -99,16 +119,12 @@ public class AudioWaveLibProvider: NSObject {
         processingTask = task
         DispatchQueue.global(qos: .userInitiated).async(execute: task)
     }
-
-    public func getSampleData() -> [Float]? {
-        sampleData
-    }
 }
 
 /// A delegate class for printing waveform in the console.
 class DemoDelegate: AudioWaveLibProviderDelegate {
     func sampleProcessed(provider: AudioWaveLibProvider) {
-        if let sampleData = provider.getSampleData() {
+        if let sampleData = provider.sampleData {
             let consoleWidth = 80
             let consoleHeight = 20
             let maxValue = sampleData.max() ?? 0

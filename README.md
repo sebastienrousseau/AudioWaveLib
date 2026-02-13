@@ -42,7 +42,7 @@ Implement the `AudioWaveLibProviderDelegate` to handle updates:
 
 ```swift
 func sampleProcessed(provider: AudioWaveLibProvider) {
-  if let data = provider.getSampleData() {
+  if let data = provider.sampleData {
     // Render waveform from sample data
   }
 }

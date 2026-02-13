@@ -1,0 +1,63 @@
+# SwiftFormat Configuration for AudioWaveLib
+# Enforces consistent Swift code formatting
+
+# File exclusions
+--exclude .build,.swiftpm,Examples/AudioWaveLibSample/main.swift
+
+# Indentation
+--indent 4
+--tabwidth 4
+--smarttabs enabled
+
+# Line length
+--maxwidth 120
+
+# Braces and spacing
+--allman false
+--wraparguments preserve
+--wrapparameters preserve
+--wrapcollections preserve
+--closingparen balanced
+--commas always
+--semicolons never
+--trimwhitespace always
+
+# Import organization
+--importgrouping alphabetical
+
+# Redundant code removal
+--redundantget true
+--redundantinit true
+--redundantlet true
+--redundantletinit true
+--redundantnil true
+--redundantparens true
+--redundantpattern true
+--redundantrawvalues true
+--redundantself remove
+--redundanttype inferred
+--redundantvoidreturntype true
+
+# Void return type
+--voidtype void
+
+# Enum formatting
+--enumnamespaces always
+
+# Access control
+--sortedimports true
+
+# Operator spacing
+--operatorfunc spaced
+
+# Generic type formatting
+--generictypes angle-brackets
+
+# Header formatting
+--header strip
+
+# Specific formatting rules
+--disable blankLinesAtEndOfScope
+--enable isEmpty
+--enable sortedImports
+--enable redundantSelf
