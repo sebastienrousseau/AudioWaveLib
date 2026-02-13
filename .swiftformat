@@ -1,7 +1,7 @@
 # SwiftFormat Configuration for AudioWaveLib
 
 # File exclusions
---exclude .build,.swiftpm,Examples
+--exclude .build,.swiftpm,Examples,Package.swift
 
 # Indentation
 --indent 4
