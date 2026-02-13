@@ -28,7 +28,7 @@ struct AudioUtils {
 }
 
 // MARK: - WaveformRenderer (Extracted from DemoDelegate)
-class WaveformRenderer: NSObject, AudioWaveLibProviderDelegate {
+class WaveformRenderer: NSObject, AudioWaveLibProviderDelegate, @unchecked Sendable {
     // Configuration properties
     var windowFillColor: NSColor = .white
     var fillColor: NSColor = .clear
@@ -138,18 +138,23 @@ class WaveformRenderer: NSObject, AudioWaveLibProviderDelegate {
     }
 
     private func displayImage(_ image: NSImage) {
-        let scaledSize = image.size
-        let imageView = NSImageView(image: image)
-        imageView.frame = NSRect(origin: .zero, size: scaledSize)
-        imageView.imageScaling = .scaleProportionallyUpOrDown
+        DispatchQueue.main.async { [self] in
+            let scaledSize = image.size
+            let imageView = NSImageView(image: image)
+            imageView.frame = NSRect(origin: .zero, size: scaledSize)
+            imageView.imageScaling = .scaleProportionallyUpOrDown
 
-        window = NSWindow(contentRect: NSRect(x: 0, y: 0, width: scaledSize.width, height: scaledSize.height),
-                         styleMask: [.titled, .closable, .miniaturizable, .resizable],
-                         backing: .buffered, defer: false)
-        window?.backgroundColor = windowFillColor
-        window?.contentView = imageView
-        window?.makeKeyAndOrderFront(nil)
-        NSApp.activate(ignoringOtherApps: true)
+            let contentRect = NSRect(x: 0, y: 0, width: scaledSize.width, height: scaledSize.height)
+            window = NSWindow(
+                contentRect: contentRect,
+                styleMask: [.titled, .closable, .miniaturizable, .resizable],
+                backing: .buffered, defer: false
+            )
+            window?.backgroundColor = windowFillColor
+            window?.contentView = imageView
+            window?.makeKeyAndOrderFront(nil)
+            NSApp.activate(ignoringOtherApps: true)
+        }
     }
 
     private func saveImageToFile(image: NSImage, format: ImageFormat) {

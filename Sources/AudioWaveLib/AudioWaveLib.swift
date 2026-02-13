@@ -70,7 +70,7 @@ public struct AudioProcessingConfig: Sendable {
 }
 
 /// Processes and accesses audio wave data, compatible across iOS, macOS, etc.
-public class AudioWaveLibProvider {
+public class AudioWaveLibProvider: @unchecked Sendable {
     private var audioFile: AVAudioFile?
 
     /// High-performance atomic wrapper using os_unfair_lock for visualization hot paths

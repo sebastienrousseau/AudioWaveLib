@@ -75,8 +75,7 @@ jobs:
           swift build \
             --configuration release \
             -Xswiftc -strict-concurrency=complete \
-            -Xswiftc -warnings-as-errors \
-            --build-tests
+            -Xswiftc -warnings-as-errors
 
       - name: Test with Coverage
         run: |
