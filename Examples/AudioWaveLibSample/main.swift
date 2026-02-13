@@ -1,285 +1,181 @@
 import AudioWaveLib
 import Cocoa
-import CoreGraphics
 import Foundation
 
-// A class that acts as a delegate for the AudioWaveLibProviderDelegate protocol.
-class DemoDelegate: NSObject, AudioWaveLibProviderDelegate {
-    // A window to display the waveform image.
-    var window: NSWindow?
-    // The color to fill the window.
+// Include shared components directly for this example
+// In a real Swift Package, these would be proper module imports
+
+// MARK: - AudioUtils (Extracted from shared utilities)
+struct AudioUtils {
+    static func calculateRMS(_ samples: [Float]) -> Float {
+        guard !samples.isEmpty else { return 0.0 }
+        let sumSquares = samples.reduce(0) { $0 + $1 * $1 }
+        return sqrt(sumSquares / Float(samples.count))
+    }
+
+    static func extractAudioMetrics(_ samples: [Float]) -> [String: Float] {
+        guard !samples.isEmpty else { return [:] }
+        let maxAmplitude = samples.max() ?? 0.0
+        let minAmplitude = samples.min() ?? 0.0
+        let rmsLevel = calculateRMS(samples)
+        return [
+            "maxAmplitude": maxAmplitude,
+            "minAmplitude": minAmplitude,
+            "rmsLevel": rmsLevel,
+            "sampleCount": Float(samples.count)
+        ]
+    }
+}
+
+// MARK: - WaveformRenderer (Extracted from DemoDelegate)
+class WaveformRenderer: NSObject, AudioWaveLibProviderDelegate {
+    // Configuration properties
     var windowFillColor: NSColor = .white
-    // The color to fill the waveform.
     var fillColor: NSColor = .clear
-    // The color to stroke the waveform lines.
     var strokeColor: NSColor = .black
-    // The width of the waveform lines.
     var lineWidth: CGFloat = 1.0
 
-    // Called when sample data is processed.
+    private var window: NSWindow?
+
     func sampleProcessed(provider: AudioWaveLibProvider) {
         print("Sample processed")
-        // Retrieve sample data from the provider.
         guard let sampleData = provider.sampleData else {
             print("No sample data available.")
             return
         }
-        print("Sample data available")
-        // Set the size of the waveform image.
+
+        print("Sample data available - \(sampleData.count) samples")
+
+        // Display metrics using shared utility
+        let metrics = AudioUtils.extractAudioMetrics(sampleData)
+        print("Audio metrics: Max: \(String(format: "%.3f", metrics["maxAmplitude"] ?? 0)), " +
+              "RMS: \(String(format: "%.3f", metrics["rmsLevel"] ?? 0))")
+
         let imageSize = CGSize(width: 300, height: 100)
-        // Generate waveform image.
         if let image = generateWaveformImage(sampleData: sampleData, imageSize: imageSize) {
             print("Image generated")
-            // Display the waveform image.
             displayImage(image)
-            // Saving image in multiple formats
             saveImageToFile(image: image, format: .png)
         } else {
             print("Failed to generate waveform image.")
         }
     }
 
-    // Called when the status of the provider is updated with an error.
-    func statusUpdated(provider _: AudioWaveLibProvider, withError error: Error) {
-        print("An error occurred: \(error.localizedDescription)")
-    }
-
-    private struct WaveformDrawingParameters {
-        let context: CGContext?
-        let path: NSBezierPath
-        let imageSize: CGSize
-        let sampleData: [Float]
-        let minValue: Float
-        let heightNormalizationFactor: CGFloat
-    }
-
-    private func drawWaveformPath(with parameters: WaveformDrawingParameters) {
-        // Unpack parameters
-        let context = parameters.context
-        let imageSize = parameters.imageSize
-        let sampleData = parameters.sampleData
-        let minValue = parameters.minValue
-        let heightNormalizationFactor = parameters.heightNormalizationFactor
-
-        // Set up drawing attributes.
-        context?.setStrokeColor(strokeColor.cgColor)
-        context?.setLineWidth(lineWidth / 2)
-
-        // Begin path.
-        context?.beginPath()
-        context?.move(to: CGPoint(x: 0, y: imageSize.height / 2))
-
-        // Iterate over sample data to draw waveform path.
-        for (index, value) in sampleData.enumerated() {
-            let horizontalPosition = CGFloat(index) / CGFloat(sampleData.count) * imageSize.width
-            let verticalPosition = (
-                CGFloat(value) - CGFloat(minValue)
-            ) * heightNormalizationFactor + imageSize.height / 2
-            context?.addLine(to: CGPoint(x: horizontalPosition, y: verticalPosition))
+    func statusUpdated(provider: AudioWaveLibProvider, withError error: Error) {
+        if let audioError = error as? AudioWaveLibProviderError {
+            switch audioError {
+            case .invalidURL:
+                print("❌ Invalid audio file URL")
+            case .fileInitializationFailed(let message):
+                print("❌ File initialization failed: \(message)")
+            case .invalidFrameCountOrFormat:
+                print("❌ Invalid audio format or frame count")
+            case .audioProcessingFailed(let message):
+                print("❌ Audio processing failed: \(message)")
+            }
+        } else {
+            print("❌ Error: \(error.localizedDescription)")
         }
-
-        // Complete the path back to the starting point.
-        context?.addLine(to: CGPoint(x: imageSize.width, y: imageSize.height / 2))
-
-        // Draw the path.
-        context?.strokePath()
     }
 
-    private func generateWaveformImage(
-        sampleData: [Float], imageSize: CGSize
-    ) -> NSImage? {
-        // Determine the screen's backing scale factor.
+    private enum ImageFormat { case png, tiff }
+
+    private func generateWaveformImage(sampleData: [Float], imageSize: CGSize) -> NSImage? {
         let scale = NSScreen.main?.backingScaleFactor ?? 1.0
-        // Calculate the bitmap size based on the image size and scale.
-        let bitmapSize = NSSize(
-            width: imageSize.width / 2 * scale,
-            height: imageSize.height * scale
-        )
+        let bitmapSize = NSSize(width: imageSize.width / 2 * scale, height: imageSize.height * scale)
 
-        // Create an NSBitmapImageRep object to represent the bitmap.
         guard let bitmapRep = NSBitmapImageRep(
-            bitmapDataPlanes: nil,
-            pixelsWide: Int(bitmapSize.width),
-            pixelsHigh: Int(bitmapSize.height),
-            bitsPerSample: 8,
-            samplesPerPixel: 4,
-            hasAlpha: true,
-            isPlanar: false,
-            colorSpaceName: .calibratedRGB,
-            bytesPerRow: 0,
-            bitsPerPixel: 0
-        ) else {
-            return nil
-        }
+            bitmapDataPlanes: nil, pixelsWide: Int(bitmapSize.width), pixelsHigh: Int(bitmapSize.height),
+            bitsPerSample: 8, samplesPerPixel: 4, hasAlpha: true, isPlanar: false,
+            colorSpaceName: .calibratedRGB, bytesPerRow: 0, bitsPerPixel: 0
+        ) else { return nil }
 
-        // Set the size of the bitmap.
         bitmapRep.size = bitmapSize
-        // Save the current graphics state.
         NSGraphicsContext.saveGraphicsState()
-        // Create a graphics context for the bitmap.
         let context = NSGraphicsContext(bitmapImageRep: bitmapRep)?.cgContext
-        // Fill the bitmap with the fill color.
         context?.setFillColor(fillColor.cgColor)
         context?.fill(CGRect(origin: .zero, size: imageSize))
 
-        // Calculate waveform parameters.
         let maxValue = sampleData.max() ?? 0
         let minValue = sampleData.min() ?? 0
         let heightNormalizationFactor = imageSize.height / CGFloat(maxValue - minValue)
         let path = NSBezierPath()
         path.lineWidth = lineWidth / scale
 
-        // Move to the starting point of the waveform path.
+        // Simplified waveform drawing
         path.move(to: CGPoint(x: 0, y: imageSize.height / 2))
+        for (index, value) in sampleData.enumerated() {
+            let x = CGFloat(index) / CGFloat(sampleData.count) * imageSize.width
+            let y = (CGFloat(value) - CGFloat(minValue)) * heightNormalizationFactor + imageSize.height / 2
+            path.line(to: CGPoint(x: x, y: y))
+        }
+        path.line(to: CGPoint(x: imageSize.width, y: imageSize.height / 2))
 
-        // Draw waveform path.
-        drawWaveformPath(with: WaveformDrawingParameters(
-            context: context,
-            path: path,
-            imageSize: imageSize,
-            sampleData: sampleData,
-            minValue: minValue,
-            heightNormalizationFactor: heightNormalizationFactor
-        ))
+        context?.setStrokeColor(strokeColor.cgColor)
+        context?.setLineWidth(lineWidth / scale)
+        context?.setLineCap(.round)
+        context?.beginPath()
 
-        // Restore the graphics state.
+        // Handle macOS version compatibility for cgPath
+        if #available(macOS 14.0, *) {
+            context?.addPath(path.cgPath)
+        } else {
+            // Manually draw the waveform for older macOS versions
+            path.move(to: CGPoint(x: 0, y: imageSize.height / 2))
+            for (index, value) in sampleData.enumerated() {
+                let x = CGFloat(index) / CGFloat(sampleData.count) * imageSize.width
+                let y = (CGFloat(value) - CGFloat(minValue)) * heightNormalizationFactor + imageSize.height / 2
+                context?.addLine(to: CGPoint(x: x, y: y))
+            }
+        }
+        context?.strokePath()
+
         NSGraphicsContext.restoreGraphicsState()
-
-        // Create an NSImage from the bitmap.
-        return NSImage(size: imageSize, flipped: false) { dstRect -> Bool in
+        return NSImage(size: imageSize, flipped: false) { dstRect in
             bitmapRep.draw(in: dstRect)
             return true
         }
     }
 
-    // Struct to hold parameters for drawing waveform.
-    struct WaveformParameters {
-        let context: CGContext?
-        let path: NSBezierPath
-        let imageSize: CGSize
-        let sampleData: [Float]
-        let minValue: Float
-        let heightNormalizationFactor: CGFloat
-    }
-
-    // Draws the waveform path with given parameters.
-    private func drawWaveformPath(with parameters: WaveformParameters) {
-        let scale = NSScreen.main?.backingScaleFactor ?? 1.0
-        let context = parameters.context
-        let path = parameters.path
-        let imageSize = parameters.imageSize
-        let sampleData = parameters.sampleData
-        let minValue = parameters.minValue
-        let heightNormalizationFactor = parameters.heightNormalizationFactor
-
-        // Move to the starting point of the waveform path.
-        path.move(to: CGPoint(x: 0, y: imageSize.height / 2))
-
-        // Iterate over sample data to draw waveform path.
-        for (index, value) in sampleData.enumerated() {
-            let horizontalPosition = CGFloat(index) / CGFloat(sampleData.count) * imageSize.width
-            let verticalPosition = (
-                CGFloat(value) - CGFloat(minValue)
-            ) * heightNormalizationFactor + imageSize.height / 2
-            path.line(to: CGPoint(x: horizontalPosition, y: verticalPosition))
-        }
-
-        // Complete the waveform path.
-        path.line(to: CGPoint(x: imageSize.width, y: imageSize.height / 2))
-
-        // Check for macOS version compatibility for adding path to the context.
-        if #available(macOS 14, *) {
-            context?.addPath(path.cgPath)
-        } else {
-            // Manually draw the waveform using Core Graphics for older macOS versions.
-            context?.setStrokeColor(strokeColor.cgColor)
-            context?.setLineWidth(lineWidth / scale)
-            context?.setLineCap(.round)
-
-            // Begin path.
-            context?.beginPath()
-            context?.move(to: CGPoint(x: 0, y: imageSize.height / 2))
-
-            // Draw waveform path.
-            for (index, value) in sampleData.enumerated() {
-                let horizontalPosition = CGFloat(index) / CGFloat(sampleData.count) * imageSize.width
-                let verticalPosition = (
-                    CGFloat(value) - CGFloat(minValue)
-                ) * heightNormalizationFactor + imageSize.height / 2
-                context?.addLine(to: CGPoint(x: horizontalPosition, y: verticalPosition))
-            }
-
-            // Complete the path back to the starting point.
-            context?.addLine(to: CGPoint(x: imageSize.width, y: imageSize.height / 2))
-            // Stroke the path.
-            context?.strokePath()
-        }
-
-        // Stroke the waveform path.
-        context?.setStrokeColor(strokeColor.cgColor)
-        context?.strokePath()
-    }
-
-    // Display the given image in a window.
     private func displayImage(_ image: NSImage) {
-        let scaledSize = NSSize(width: image.size.width, height: image.size.height)
+        let scaledSize = image.size
         let imageView = NSImageView(image: image)
         imageView.frame = NSRect(origin: .zero, size: scaledSize)
         imageView.imageScaling = .scaleProportionallyUpOrDown
 
-        window = NSWindow(contentRect: NSRect(
-            x: 0,
-            y: 0,
-            width: scaledSize.width,
-            height: scaledSize.height
-        ), styleMask: [.titled, .closable, .miniaturizable, .resizable], backing: .buffered, defer: false)
+        window = NSWindow(contentRect: NSRect(x: 0, y: 0, width: scaledSize.width, height: scaledSize.height),
+                         styleMask: [.titled, .closable, .miniaturizable, .resizable],
+                         backing: .buffered, defer: false)
         window?.backgroundColor = windowFillColor
         window?.contentView = imageView
         window?.makeKeyAndOrderFront(nil)
         NSApp.activate(ignoringOtherApps: true)
     }
 
-    // Saves the given image to a file with the specified format.
-    // Expanded to support multiple formats
     private func saveImageToFile(image: NSImage, format: ImageFormat) {
-        let fileExtension: String
-        switch format {
-        case .png:
-            fileExtension = "png"
-        default:
-            return
-        }
-
-        var data: Data?
-        data = image.tiffRepresentation
-
-        guard let imageData = data else {
+        let fileExtension = format == .png ? "png" : "tiff"
+        guard let data = image.tiffRepresentation,
+              let fileURL = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask).first?
+                .appendingPathComponent("waveform.\(fileExtension)") else {
             print("Failed to prepare image data for saving.")
             return
         }
 
-        let fileURL = FileManager.default.urls(
-            for: .documentDirectory,
-            in: .userDomainMask
-        ).first?.appendingPathComponent(
-            "waveform.\(fileExtension)"
-        )
         do {
-            try imageData.write(to: fileURL!)
-            print("Waveform image saved as \(fileExtension.uppercased()) to \(fileURL!.path)")
+            try data.write(to: fileURL)
+            print("Waveform image saved as \(fileExtension.uppercased()) to \(fileURL.path)")
         } catch {
             print("Error saving image: \(error)")
         }
     }
 }
 
-// Enum to represent supported image formats.
-enum ImageFormat {
-    case png, tiff
-}
+// Instantiate WaveformRenderer using the extracted component.
+let waveformRenderer = WaveformRenderer()
 
-// Instantiate DemoDelegate.
-let delegate = DemoDelegate()
+// Configure waveform appearance (optional)
+waveformRenderer.strokeColor = .systemBlue
+waveformRenderer.lineWidth = 1.5
 // URL of the audio file.
 let url = URL(fileURLWithPath: "file.mp3")
 // Create an instance of AudioWaveLibProvider with the audio file URL.
@@ -288,7 +184,7 @@ guard let provider = try? AudioWaveLibProvider(url: url) else {
 }
 
 // Set the delegate of the provider.
-provider.delegate = delegate
+provider.delegate = waveformRenderer
 // Create sample data from the audio file.
 provider.createSampleData()
 
