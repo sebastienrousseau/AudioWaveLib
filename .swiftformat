@@ -1,0 +1,51 @@
+# SwiftFormat Configuration for AudioWaveLib
+
+# File exclusions
+--exclude .build,.swiftpm,Examples,Package.swift
+
+# Indentation
+--indent 4
+--tab-width 4
+--smart-tabs enabled
+
+# Line length
+--max-width 120
+
+# Braces and spacing
+--allman false
+--wrap-arguments preserve
+--wrap-parameters preserve
+--wrap-collections preserve
+--closing-paren balanced
+--trailing-commas always
+--semicolons never
+--trim-whitespace always
+
+# Import organization
+--import-grouping alpha
+
+# Self
+--self remove
+
+# Void return type
+--void-type void
+
+# Enum formatting
+--enum-namespaces always
+
+# Operator spacing
+--operator-func spaced
+
+# Header formatting
+--header strip
+
+# Rules
+--disable blankLinesAtEndOfScope
+--disable numberFormatting
+--disable noForceUnwrapInTests
+--enable isEmpty
+--enable sortImports
+--enable redundantSelf
+
+# Trailing commas - match SwiftLint preference (no trailing commas)
+--trailing-commas never

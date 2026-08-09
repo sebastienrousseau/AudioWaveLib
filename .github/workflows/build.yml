@@ -3,17 +3,15 @@ name: 🧪 Build
 on: [push, pull_request]
 
 concurrency:
-  group: ${{ github.ref }}
+  group: build-${{ github.ref }}
   cancel-in-progress: true
 
 jobs:
-  xcode_15_1:
-    runs-on: macos-13
-    env:
-      DEVELOPER_DIR: /Applications/Xcode_15.1.app/Contents/Developer
+  macos-build:
+    runs-on: macos-latest
     steps:
       - name: Checkout
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
       - name: Version
         run: swift --version
       - name: Build
@@ -23,14 +21,15 @@ jobs:
       - name: Gather code coverage
         run: xcrun llvm-cov export -format="lcov" .build/debug/AudioWaveLibPackageTests.xctest/Contents/MacOS/AudioWaveLibPackageTests -instr-profile .build/debug/codecov/default.profdata > coverage_report.lcov
       - name: Upload Coverage
-        uses: codecov/codecov-action@v3
+        uses: codecov/codecov-action@v4
         with:
           files: ./coverage_report.lcov
+          fail_ci_if_error: false
       - name: Install SwiftLint
         run: brew install swiftlint
       - name: Run SwiftLint
-        run: swiftlint
+        run: swiftlint --strict
       - name: Install SwiftFormat
         run: brew install swiftformat
       - name: Run SwiftFormat
-        run: swiftformat .
+        run: swiftformat --lint .

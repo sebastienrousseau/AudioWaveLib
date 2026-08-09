@@ -39,7 +39,7 @@ If you have an idea for a new feature or improvement, we'd love to hear it. Here
 - Fork the repo.
 - Clone the AudioWaveLib[1] repo by running:
   `git clone https://github.com/sebastienrousseau/AudioWaveLib`
-- Edit files in the `src/` folder. The `src/` folder contains the source code for AudioWaveLib.
+- Edit files in the `Sources/AudioWaveLib/` folder. This contains the source code for AudioWaveLib.
 - Submit a pull request, and we'll review and merge your changes if they fit with our vision for AudioWaveLib.
 
 #### Submitting Code
@@ -49,7 +49,7 @@ If you've identified a bug or have a specific code improvement in mind, we welco
 - Fork the repo.
 - Clone the AudioWaveLib repo by running:
   `git clone https://github.com/sebastienrousseau/AudioWaveLib`
-- Edit files in the `src/` folder. The `src/` folder contains the source code for AudioWaveLib.
+- Edit files in the `Sources/AudioWaveLib/` folder. This contains the source code for AudioWaveLib.
 - Submit a pull request, and we'll review and merge your changes if they fit with our vision for AudioWaveLib.
 
 We hope that this guide has been helpful in explaining how you can contribute to AudioWaveLib. Thank you for your interest and involvement in our project!
