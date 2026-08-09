@@ -101,12 +101,31 @@ public class AudioWaveLibProvider: @unchecked Sendable {
     private let _atomicSampleData = AtomicReference<[Float]?>(nil)
 
     /// Thread-safe access to processed audio sample data.
+    ///
+    /// A single channel of samples, not interleaved audio. For a multi-channel
+    /// file only the first channel is collected — this series is intended for
+    /// waveform rendering, where one channel is the usual input. Callers
+    /// needing every channel should read the file through `AVAudioFile`
+    /// directly.
     public var sampleData: [Float]? {
         get { _atomicSampleData.value }
         set { _atomicSampleData.value = newValue }
     }
 
-    var processingTask: DispatchWorkItem?
+    /// The in-flight processing task.
+    ///
+    /// Guarded by the same atomic wrapper as `sampleData`: it is written on
+    /// the calling thread by `createSampleData` and read from the processing
+    /// queue on every chunk to honour cancellation, so an unsynchronised
+    /// stored property would race. The class is `@unchecked Sendable`, which
+    /// means the compiler will not catch that for us.
+    private let _atomicProcessingTask = AtomicReference<DispatchWorkItem?>(nil)
+
+    var processingTask: DispatchWorkItem? {
+        get { _atomicProcessingTask.value }
+        set { _atomicProcessingTask.value = newValue }
+    }
+
     public weak var delegate: AudioWaveLibProviderDelegate?
 
     public init(url: URL) throws {
@@ -192,8 +211,13 @@ public class AudioWaveLibProvider: @unchecked Sendable {
         _ audioFile: AVAudioFile,
         config: AudioProcessingConfig
     ) -> AudioWaveLibProviderError? {
-        let bytesPerFrame = audioFile.processingFormat.channelCount * 4
-        let totalMemoryNeeded = Int(audioFile.length) * Int(bytesPerFrame)
+        // One channel is retained, not all of them (see `sampleData`), so the
+        // estimate is per-frame Float size rather than channelCount * 4.
+        // Counting every channel over-estimated by the channel count —
+        // rejecting stereo files at half the real limit — and disagreed with
+        // the live check inside the read loop, which measures actual storage.
+        let bytesPerFrame = MemoryLayout<Float>.size
+        let totalMemoryNeeded = Int(audioFile.length) * bytesPerFrame
         let megabyteDivisor = 1_048_576
 
         guard totalMemoryNeeded <= config.maxMemoryUsage else {
@@ -252,6 +276,26 @@ public class AudioWaveLibProvider: @unchecked Sendable {
 
                     try audioFile.read(into: chunkBuffer)
 
+                    // A read of zero frames does not advance `currentFrame`,
+                    // so without this guard the enclosing `while` spins
+                    // forever on a file whose header claims more frames than
+                    // are actually readable — a truncated download, or any
+                    // malformed file. It runs on a background queue, so the
+                    // symptom is a pinned core and a delegate that is never
+                    // called, rather than a crash.
+                    guard chunkBuffer.frameLength > 0 else {
+                        chunkError = AudioWaveLibProviderError.audioProcessingFailed(
+                            "Read returned no frames at \(currentFrame) of "
+                                + "\(audioFile.length); the file is truncated or malformed"
+                        )
+                        shouldStop = true
+                        return
+                    }
+
+                    // Only the first channel is collected: `sampleData` is a
+                    // single `[Float]` series for waveform rendering, not
+                    // interleaved multi-channel audio. See the note on
+                    // `sampleData`.
                     if let channelData = chunkBuffer.floatChannelData?.pointee {
                         let chunkSamples = UnsafeBufferPointer(
                             start: channelData,
