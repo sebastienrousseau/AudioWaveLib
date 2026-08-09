@@ -171,8 +171,13 @@ final class AudioWaveLibEdgeCaseTests: XCTestCase {
             self.onFinish = onFinish
         }
 
-        func sampleProcessed(provider _: AudioWaveLibProvider) { finish() }
-        func statusUpdated(provider _: AudioWaveLibProvider, withError _: Error) { finish() }
+        func sampleProcessed(provider _: AudioWaveLibProvider) {
+            finish()
+        }
+
+        func statusUpdated(provider _: AudioWaveLibProvider, withError _: Error) {
+            finish()
+        }
 
         private func finish() {
             guard !fired else { return }

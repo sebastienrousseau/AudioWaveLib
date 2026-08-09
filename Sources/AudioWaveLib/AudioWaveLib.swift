@@ -198,7 +198,9 @@ public class AudioWaveLibProvider: @unchecked Sendable {
             return
         }
 
-        if processingTask?.isCancelled ?? false { return }
+        if processingTask?.isCancelled ?? false {
+            return
+        }
 
         sampleData = result.samples
 
