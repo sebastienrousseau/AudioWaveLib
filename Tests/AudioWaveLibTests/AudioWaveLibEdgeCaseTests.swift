@@ -151,7 +151,8 @@ final class AudioWaveLibEdgeCaseTests: XCTestCase {
 
             let samples = try XCTUnwrap(provider.sampleData)
             XCTAssertEqual(
-                samples.count, Int(frames),
+                samples.count,
+                Int(frames),
                 "one channel expected, not interleaved: got \(samples.count) for \(frames) frames"
             )
             // Channel 0 was written as frame/frames, channel 1 as 2*frame/frames.
