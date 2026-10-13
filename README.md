@@ -1,38 +1,87 @@
-<!-- markdownlint-disable MD033 MD041 -->
+<!-- SPDX-License-Identifier: Apache-2.0 OR MIT -->
 
-<img
-  align="right"
-  alt="Logo of the AudioWaveLib"
-  height="261"
-  src="https://kura.pro/audiowave/images/logos/audiowave.svg"
-  title="Logo of the AudioWaveLib"
-  width="261"
-  />
+<p align="center">
+  <img src="https://kura.pro/audiowave/images/logos/audiowave.svg" alt="AudioWaveLib logo" width="128" />
+</p>
 
-<!-- markdownlint-enable MD033 MD041 -->
+<h1 align="center">AudioWaveLib</h1>
 
-# AudioWaveLib
+<p align="center">
+  A high-performance Swift library for processing audio files and generating waveform visualizations across Apple platforms.
+</p>
 
-A Swift library for processing audio files and generating waveform visualizations across iOS, macOS, watchOS, and tvOS.
+<p align="center">
+  <a href="https://github.com/sebastienrousseau/AudioWaveLib/actions"><img src="https://img.shields.io/github/actions/workflow/status/sebastienrousseau/AudioWaveLib/build.yml?style=for-the-badge&logo=github" alt="Build" height="28" /></a>
+  <a href="https://swift.org/package-manager/"><img src="https://img.shields.io/badge/SwiftPM-compatible-orange?style=for-the-badge&logo=swift" alt="SwiftPM" height="28" /></a>
+  <a href="https://scorecard.dev/viewer/?uri=github.com/sebastienrousseau/AudioWaveLib"><img src="https://img.shields.io/ossf-scorecard/github.com/sebastienrousseau/AudioWaveLib?style=for-the-badge&label=OpenSSF%20Scorecard&logo=openssf" alt="OpenSSF Scorecard" height="28" /></a>
+  <a href="LICENSE"><img src="https://img.shields.io/badge/license-Apache--2.0%20OR%20MIT-blue.svg?style=for-the-badge" alt="License: Apache-2.0 OR MIT" height="28" /></a>
+  <a href="Package.swift"><img src="https://img.shields.io/badge/Swift-5.5+-93450a.svg?style=for-the-badge&logo=swift" alt="Swift 5.5+" height="28" /></a>
+</p>
 
-## Features
+---
 
-- Process audio files using AVFoundation (MP3, WAV, M4A, AIFF)
-- Extract PCM sample data with thread-safe access
-- Generate high-quality waveform visualizations
-- Asynchronous processing with GCD
-- Cross-platform support with AppKit and CoreGraphics integration
+## Contents
+
+**Getting started**
+
+- [Install](#install) - Swift Package Manager dependency
+- [Requirements](#requirements) - toolchain floor and supported platforms
+- [Quick Start](#quick-start) - basic audio provider setup
+
+**Library reference**
+
+- [Capabilities at a glance](#capabilities-at-a-glance) - core features and processing pipeline
+- [API Reference](#api-reference) - provider, protocols, and error types
+- [Examples](#examples) - visual waveform and batch processing
+
+**Operational**
+
+- [When not to use AudioWaveLib](#when-not-to-use-audiowavelib) - limitations
+- [Development](#development) - building and running tests
+- [Security](#security) - reporting vulnerabilities
+- [Documentation](#documentation) - reference guides
+- [Stability guarantees](#stability-guarantees) - SemVer policy
+- [License](#license) - Apache-2.0 OR MIT
+
+---
+
+## Install
+
+### As a Swift Package
+
+Add AudioWaveLib to your `Package.swift` dependencies:
+
+```swift
+dependencies: [
+    .package(url: "https://github.com/sebastienrousseau/AudioWaveLib.git", from: "0.0.3")
+]
+```
+
+Or add it directly in Xcode via **File > Add Packages...** using the repository URL.
+
+---
+
+## Requirements
+
+- **Swift**: 5.5 or later
+- **Xcode**: 13.0 or later
+- **Platform targets**:
+  - macOS 10.15+
+  - iOS 13.0+
+  - tvOS 13.0+
+  - watchOS 6.0+
+
+---
 
 ## Quick Start
 
-### Basic Usage
-
 ```swift
 import AudioWaveLib
+import Foundation
 
-// Initialize with audio file URL
+// Initialize with an audio file URL
 do {
-    let audioURL = URL(fileURLWithPath: "/path/to/your/audio.mp3")
+    let audioURL = URL(fileURLWithPath: "/path/to/audio.mp3")
     let provider = try AudioWaveLibProvider(url: audioURL)
     provider.delegate = self
     provider.createSampleData()
@@ -41,380 +90,108 @@ do {
 }
 ```
 
-### Implementing the Delegate
+Implement the delegate protocol to receive samples:
 
 ```swift
-class AudioProcessor: AudioWaveLibProviderDelegate {
+extension MyAudioVisualizer: AudioWaveLibProviderDelegate {
     func sampleProcessed(provider: AudioWaveLibProvider) {
-        guard let sampleData = provider.sampleData else { return }
-        print("Processed \(sampleData.count) audio samples")
-
-        // Generate waveform visualization
-        let waveformImage = generateWaveform(from: sampleData)
-        displayWaveform(waveformImage)
+        guard let samples = provider.sampleData else { return }
+        print("Processed \(samples.count) audio samples")
     }
 
     func statusUpdated(provider: AudioWaveLibProvider, withError error: Error) {
-        if let audioError = error as? AudioWaveLibProviderError {
-            switch audioError {
-            case .invalidURL:
-                print("Invalid audio file URL")
-            case .fileInitializationFailed(let message):
-                print("File initialization failed: \(message)")
-            case .invalidFrameCountOrFormat:
-                print("Invalid audio format or frame count")
-            case .audioProcessingFailed(let message):
-                print("Processing failed: \(message)")
-            }
-        }
+        print("Processing error: \(error.localizedDescription)")
     }
 }
 ```
 
-## Usage Examples
+---
 
-### Example 1: Processing MP3 Files
+## Capabilities at a glance
 
-```swift
-import AudioWaveLib
+- **AVFoundation Integration**: Decodes MP3, WAV, M4A, and AIFF audio files.
+- **Chunked Allocation**: Bounded memory footprint with autoreleasepool chunk collection.
+- **Thread Safety**: NSLock synchronized access to sample data and cancellation tokens.
+- **Cross-Platform**: Zero third-party dependencies; uses native Apple frameworks only.
 
-let audioProcessor = AudioProcessor()
-
-do {
-    // Process an MP3 file
-    let mp3URL = URL(fileURLWithPath: "/Users/username/Music/song.mp3")
-    let provider = try AudioWaveLibProvider(url: mp3URL)
-    provider.delegate = audioProcessor
-    provider.createSampleData()
-} catch AudioWaveLibProviderError.invalidURL {
-    print("MP3 file URL is invalid")
-} catch AudioWaveLibProviderError.fileInitializationFailed(let message) {
-    print("Could not read MP3 file: \(message)")
-} catch {
-    print("Unexpected error: \(error)")
-}
-```
-
-### Example 2: Processing WAV Files with Waveform Generation
-
-```swift
-import AudioWaveLib
-import Cocoa
-
-class WaveformGenerator: AudioWaveLibProviderDelegate {
-    func sampleProcessed(provider: AudioWaveLibProvider) {
-        guard let sampleData = provider.sampleData else { return }
-
-        // Create waveform image
-        let imageSize = CGSize(width: 800, height: 200)
-        if let waveformImage = createWaveformImage(
-            from: sampleData,
-            size: imageSize,
-            strokeColor: .blue,
-            backgroundColor: .white
-        ) {
-            saveWaveformImage(waveformImage, to: "waveform.png")
-        }
-    }
-
-    func statusUpdated(provider: AudioWaveLibProvider, withError error: Error) {
-        print("Error processing WAV: \(error.localizedDescription)")
-    }
-
-    private func createWaveformImage(
-        from sampleData: [Float],
-        size: CGSize,
-        strokeColor: NSColor,
-        backgroundColor: NSColor
-    ) -> NSImage? {
-        // Custom waveform rendering implementation
-        return generateWaveformVisualization(sampleData, size, strokeColor, backgroundColor)
-    }
-}
-
-// Usage
-let waveformGenerator = WaveformGenerator()
-do {
-    let wavURL = URL(fileURLWithPath: "/Users/username/Desktop/recording.wav")
-    let provider = try AudioWaveLibProvider(url: wavURL)
-    provider.delegate = waveformGenerator
-    provider.createSampleData()
-} catch {
-    print("WAV processing failed: \(error)")
-}
-```
-
-### Example 3: Batch Processing Multiple Audio Formats
-
-```swift
-import AudioWaveLib
-
-class BatchAudioProcessor: AudioWaveLibProviderDelegate {
-    private var processedFiles: [String] = []
-    private var currentFile: String = ""
-
-    func processAudioFiles(_ urls: [URL]) {
-        for url in urls {
-            currentFile = url.lastPathComponent
-
-            do {
-                let provider = try AudioWaveLibProvider(url: url)
-                provider.delegate = self
-                provider.createSampleData()
-            } catch {
-                print("Failed to process \(currentFile): \(error)")
-            }
-        }
-    }
-
-    func sampleProcessed(provider: AudioWaveLibProvider) {
-        guard let sampleData = provider.sampleData else { return }
-
-        processedFiles.append(currentFile)
-        print("✓ Processed \(currentFile) - \(sampleData.count) samples")
-
-        // Extract audio metrics
-        let maxAmplitude = sampleData.max() ?? 0.0
-        let minAmplitude = sampleData.min() ?? 0.0
-        let rmsLevel = calculateRMS(sampleData)
-
-        print("  Max: \(maxAmplitude), Min: \(minAmplitude), RMS: \(rmsLevel)")
-    }
-
-    func statusUpdated(provider: AudioWaveLibProvider, withError error: Error) {
-        print("✗ Error processing \(currentFile): \(error.localizedDescription)")
-    }
-
-    private func calculateRMS(_ samples: [Float]) -> Float {
-        let sumSquares = samples.reduce(0) { $0 + $1 * $1 }
-        return sqrt(sumSquares / Float(samples.count))
-    }
-}
-
-// Usage
-let batchProcessor = BatchAudioProcessor()
-let audioFiles = [
-    URL(fileURLWithPath: "/Users/username/Audio/track1.mp3"),
-    URL(fileURLWithPath: "/Users/username/Audio/track2.wav"),
-    URL(fileURLWithPath: "/Users/username/Audio/track3.m4a"),
-    URL(fileURLWithPath: "/Users/username/Audio/track4.aiff")
-]
-
-batchProcessor.processAudioFiles(audioFiles)
-```
-
-### Example 4: Real-time Waveform Display
-
-```swift
-import AudioWaveLib
-import Cocoa
-
-class RealtimeWaveformView: NSView, AudioWaveLibProviderDelegate {
-    private var sampleData: [Float] = []
-    private var waveformPath: NSBezierPath?
-
-    func loadAudioFile(_ url: URL) {
-        do {
-            let provider = try AudioWaveLibProvider(url: url)
-            provider.delegate = self
-            provider.createSampleData()
-        } catch {
-            print("Failed to load audio: \(error)")
-        }
-    }
-
-    func sampleProcessed(provider: AudioWaveLibProvider) {
-        guard let data = provider.sampleData else { return }
-
-        DispatchQueue.main.async {
-            self.sampleData = data
-            self.generateWaveformPath()
-            self.needsDisplay = true
-        }
-    }
-
-    func statusUpdated(provider: AudioWaveLibProvider, withError error: Error) {
-        DispatchQueue.main.async {
-            // Show error state in UI
-            self.displayError(error)
-        }
-    }
-
-    override func draw(_ dirtyRect: NSRect) {
-        super.draw(dirtyRect)
-
-        guard let path = waveformPath else { return }
-
-        NSColor.black.setStroke()
-        path.lineWidth = 1.0
-        path.stroke()
-    }
-
-    private func generateWaveformPath() {
-        guard !sampleData.isEmpty else { return }
-
-        let path = NSBezierPath()
-        let width = bounds.width
-        let height = bounds.height
-        let midY = height / 2
-
-        path.move(to: NSPoint(x: 0, y: midY))
-
-        for (index, sample) in sampleData.enumerated() {
-            let x = (CGFloat(index) / CGFloat(sampleData.count)) * width
-            let y = midY + (CGFloat(sample) * midY * 0.8)
-            path.line(to: NSPoint(x: x, y: y))
-        }
-
-        waveformPath = path
-    }
-
-    private func displayError(_ error: Error) {
-        // Custom error display implementation
-    }
-}
-
-// Usage
-let waveformView = RealtimeWaveformView(frame: NSRect(x: 0, y: 0, width: 600, height: 150))
-waveformView.loadAudioFile(URL(fileURLWithPath: "/path/to/audio/file.mp3"))
-```
-
-### Example 5: Console Waveform Output
-
-```swift
-import AudioWaveLib
-
-class ConsoleWaveformProcessor: AudioWaveLibProviderDelegate {
-    func sampleProcessed(provider: AudioWaveLibProvider) {
-        guard let sampleData = provider.sampleData else { return }
-
-        renderConsoleWaveform(sampleData)
-    }
-
-    func statusUpdated(provider: AudioWaveLibProvider, withError error: Error) {
-        print("Console processor error: \(error.localizedDescription)")
-    }
-
-    private func renderConsoleWaveform(_ samples: [Float]) {
-        let consoleWidth = 80
-        let consoleHeight = 20
-
-        guard let maxValue = samples.max(),
-              let minValue = samples.min() else { return }
-
-        var waveform = Array(repeating: Array(repeating: " ", count: consoleWidth), count: consoleHeight)
-
-        for columnIndex in 0..<consoleWidth {
-            let startIndex = columnIndex * samples.count / consoleWidth
-            let endIndex = min((columnIndex + 1) * samples.count / consoleWidth, samples.count)
-            let columnSamples = Array(samples[startIndex..<endIndex])
-
-            guard let columnMax = columnSamples.max(),
-                  let columnMin = columnSamples.min() else { continue }
-
-            let maxRow = scaleToRow(columnMax, minValue, maxValue, consoleHeight)
-            let minRow = scaleToRow(columnMin, minValue, maxValue, consoleHeight)
-
-            for rowIndex in minRow..<maxRow {
-                waveform[rowIndex][columnIndex] = "█"
-            }
-        }
-
-        print("\nAudio Waveform:")
-        print(String(repeating: "-", count: consoleWidth + 2))
-
-        for row in waveform.reversed() {
-            print("|" + row.joined() + "|")
-        }
-
-        print(String(repeating: "-", count: consoleWidth + 2))
-        print("Duration: \(samples.count) samples | Range: \(minValue)...\(maxValue)")
-    }
-
-    private func scaleToRow(_ value: Float, _ minValue: Float, _ maxValue: Float, _ height: Int) -> Int {
-        let normalized = (value - minValue) / (maxValue - minValue)
-        return Int(normalized * Float(height))
-    }
-}
-
-// Usage
-let consoleProcessor = ConsoleWaveformProcessor()
-do {
-    let audioURL = URL(fileURLWithPath: "/Users/username/test-audio.mp3")
-    let provider = try AudioWaveLibProvider(url: audioURL)
-    provider.delegate = consoleProcessor
-    provider.createSampleData()
-} catch {
-    print("Console processing failed: \(error)")
-}
-```
-
-## Platform Support
-
-- **iOS 13.0+** - Full audio processing and waveform generation
-- **macOS 10.15+** - Complete feature set with AppKit integration
-- **watchOS 6.0+** - Audio processing (limited visualization)
-- **tvOS 13.0+** - Audio processing with UIKit integration
-
-## Installation
-
-### Swift Package Manager
-
-Add AudioWaveLib as a dependency in your `Package.swift`:
-
-```swift
-dependencies: [
-    .package(url: "https://github.com/sebastienrousseau/AudioWaveLib.git", from: "0.0.2")
-]
-```
-
-Or add it through Xcode:
-1. File → Add Package Dependencies
-2. Enter repository URL
-3. Select version and target
+---
 
 ## API Reference
 
 ### AudioWaveLibProvider
 
-Main class for audio processing.
+Primary processing engine for audio files.
 
-**Initialization:**
-- `init(url: URL) throws` - Initialize with audio file URL
-
-**Properties:**
-- `sampleData: [Float]?` - Thread-safe access to processed audio samples
-- `delegate: AudioWaveLibProviderDelegate?` - Delegate for callbacks
-
-**Methods:**
-- `createSampleData()` - Start asynchronous audio processing
+- `init(url: URL) throws`: Initialise with a file URL.
+- `var sampleData: [Float]?`: Thread-safe access to processed float samples.
+- `weak var delegate: AudioWaveLibProviderDelegate?`: Callback receiver for results.
+- `func createSampleData()`: Dispatches asynchronous decoding and normalization.
 
 ### AudioWaveLibProviderDelegate
 
-Protocol for receiving processing updates.
-
-**Required Methods:**
-- `sampleProcessed(provider: AudioWaveLibProvider)` - Called when processing completes
-- `statusUpdated(provider: AudioWaveLibProvider, withError error: Error)` - Called on errors
+Protocol for receiving callbacks:
+- `func sampleProcessed(provider: AudioWaveLibProvider)`: Invoked when sample extraction finishes.
+- `func statusUpdated(provider: AudioWaveLibProvider, withError error: Error)`: Invoked on errors.
 
 ### AudioWaveLibProviderError
 
-Enumeration of possible errors:
-- `invalidURL` - The provided URL is invalid
-- `fileInitializationFailed(String)` - Cannot read the audio file
-- `invalidFrameCountOrFormat` - Invalid audio format or frame count
-- `audioProcessingFailed(String)` - Processing operation failed
+- `invalidURL`: The specified URL is invalid or inaccessible.
+- `fileInitializationFailed(String)`: AVAudioFile failed to open the resource.
+- `invalidFrameCountOrFormat`: Audio format contains invalid channels or zero frame count.
+- `audioProcessingFailed(String)`: Processing encountered an unrecoverable failure.
 
-## Requirements
+---
 
-- **Xcode 13.0+**
-- **Swift 5.5+**
-- **Deployment targets:** iOS 13+, macOS 10.15+, watchOS 6+, tvOS 13+
+## Examples
 
-## Contributing
+Runnable example projects are located in [`Examples/`](Examples/):
+- **ConsoleWaveform**: Generates ASCII waveform previews directly in the terminal.
+- **BatchProcessing**: Processes multiple audio files concurrently.
+- **AudioWaveLibSample**: AppKit waveform drawing canvas.
 
-Read our [Contributing Guide](CONTRIBUTING.md) for development setup and guidelines.
+---
+
+## When not to use AudioWaveLib
+
+- **Non-Apple platforms**: AVFoundation is an Apple platform framework; Linux/Windows builds are unsupported.
+- **Real-time microphone input**: AudioWaveLib is designed for static audio file processing, not live audio stream buffering.
+
+---
+
+## Development
+
+```bash
+# Build library targets
+swift build
+
+# Run unit and performance test suite
+swift test
+```
+
+---
+
+## Security
+
+Report vulnerabilities according to [`SECURITY.md`](SECURITY.md).
+
+---
+
+## Documentation
+
+- [Contributing Guide](CONTRIBUTING.md)
+- [Security Policy](SECURITY.md)
+- [Changelog](CHANGELOG.md)
+
+---
+
+## Stability guarantees
+
+AudioWaveLib adheres to [Semantic Versioning 2.0.0](https://semver.org/). Public API surfaces remain backward-compatible within major versions.
+
+---
 
 ## License
 
-AudioWaveLib is released under the [zlib License](LICENSE.txt).
+Copyright © 2026 <a href="https://sebastienrousseau.com/" rel="author">Sebastien Rousseau</a>. All rights reserved.
+
+Licensed under either the [Apache License, Version 2.0](LICENSE-APACHE) or the [MIT License](LICENSE-MIT) at your option.

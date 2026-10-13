@@ -2,7 +2,7 @@ import AVFoundation
 import Foundation
 
 /// The current version of AudioWaveLib.
-public let audioWaveLibVersion = "0.0.2" // swiftlint:disable:this prefixed_toplevel_constant
+public let audioWaveLibVersion = "0.0.3" // swiftlint:disable:this prefixed_toplevel_constant
 
 /// An enumeration representing the possible errors that can occur in the AudioWaveLibProvider.
 public enum AudioWaveLibProviderError: Error, Equatable {
