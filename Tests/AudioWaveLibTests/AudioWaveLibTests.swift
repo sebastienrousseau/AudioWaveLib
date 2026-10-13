@@ -102,7 +102,7 @@ final class AudioWaveLibTests: XCTestCase {
     // MARK: - Version Tests
 
     func testAudioWaveLibVersion() {
-        XCTAssertEqual(audioWaveLibVersion, "0.0.2")
+        XCTAssertEqual(audioWaveLibVersion, "0.0.3")
     }
 
     // MARK: - Error Tests
